@@ -18,7 +18,7 @@ const APP_METADATA: &[u8] = include_bytes!("../app_metadata.toml");
 const APP_METADATA: &[u8] = &[];
 const APP_METADATA_CONFIG: &str = "meta.toml";
 const META_LINE_PREFIX_TIMESTAMP: &str = "timestamp = ";
-const APP_PREFIX: &str = "智慧通";
+const APP_PREFIX: &str = "DaXianMeeting";
 const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
@@ -137,7 +137,7 @@ fn setup(
     for file in reader.files.iter() {
         file.write_to_file(&dir);
     }
-    let custom_appname = "主控端.exe";
+    let custom_appname = "大仙会议.exe";
 
     rename_file_if_exists(dir.to_str().unwrap(), "rustdesk.exe", custom_appname);
     

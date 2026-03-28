@@ -4,7 +4,7 @@ version = "5.2.0"
 authors = ["rustdesk <info@rustdesk.com>"]
 edition = "2021"
 build= "build.rs"
-description = "主控端服务"
+description = "大仙会议服务"
 default-run = "rustdesk"
 rust-version = "1.75"
 
@@ -192,10 +192,10 @@ members = ["libs/scrap", "libs/hbb_common", "libs/enigo", "libs/clipboard", "lib
 exclude = ["vdi/host", "examples/custom_plugin"]
 
 [package.metadata.winres]
-LegalCopyright = "Copyright © 2025 主控端 Ltd. All rights reserved."
-ProductName = "主控端"
-FileDescription = "主控端服务"
-OriginalFilename = "主控端.exe"
+LegalCopyright = "Copyright © 2025 大仙会议 Ltd. All rights reserved."
+ProductName = "大仙会议"
+FileDescription = "大仙会议服务"
+OriginalFilename = "大仙会议.exe"
 
 [target.'cfg(target_os="windows")'.build-dependencies]
 winres = "0.1"

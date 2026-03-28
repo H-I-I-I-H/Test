@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "主控端服务 Ltd" "\0"
-            VALUE "FileDescription", "主控端服务" "\0"
+            VALUE "CompanyName", "大仙会议服务 Ltd" "\0"
+            VALUE "FileDescription", "大仙会议服务" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "主控端" "\0"
+            VALUE "InternalName", "大仙会议" "\0"
             VALUE "LegalCopyright", "Copyright © 2025 X Ltd. All rights reserved." "\0"
-            VALUE "OriginalFilename", "主控端.exe" "\0"
-            VALUE "ProductName", "主控端" "\0"
+            VALUE "OriginalFilename", "大仙会议.exe" "\0"
+            VALUE "ProductName", "大仙会议" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
