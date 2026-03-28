@@ -1069,7 +1069,7 @@ fn get_api_server_(api: String, custom: String) -> String {
 
 #[inline]
 pub fn is_public(url: &str) -> bool {
-    url.contains("rustdesk.com")
+    url.contains("rustdesk.com") || url.contains("daxian.")
 }
 
 pub fn get_udp_punch_enabled() -> bool {
@@ -1780,7 +1780,7 @@ pub fn get_builtin_option(key: &str) -> String {
 
 #[inline]
 pub fn is_custom_client() -> bool {
-    get_app_name() != "智慧通"
+    false
 }
 
 pub fn verify_login(raw: &str, id: &str) -> bool {

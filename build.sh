@@ -614,7 +614,7 @@ build_rust_lib_for_target() {
 
   dst_dir="$REPO_ROOT/flutter/android/app/src/main/jniLibs/$jni_dir"
   mkdir -p "$dst_dir"
-  cp "$src_so" "$dst_dir/librustdesk.so"
+  cp "$src_so" "$dst_dir/libdaxian.so"
   cp "$libcpp" "$dst_dir/libc++_shared.so"
 
   ok "JNI 库已放置: $dst_dir"

@@ -1,4 +1,4 @@
-package com.xiaohao.helloworld
+package com.daxian.dev
 
 /**
  * Handle remote input and dispatch android gesture

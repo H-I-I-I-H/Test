@@ -1,4 +1,4 @@
-package com.xiaohao.helloworld
+package com.daxian.dev
 
 import android.annotation.SuppressLint
 import android.app.PendingIntent
@@ -306,8 +306,8 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
 
      private fun showPopupMenu() {
          val popupMenu = PopupMenu(this, floatingView)
-         val idShowRustDesk = 0
-         popupMenu.menu.add(0, idShowRustDesk, 0, translate(p50.a(byteArrayOf(-5, -89, 71, 106, -74, -30, -80, 87, -36, -117, 77, 110, -3), byteArrayOf(-88, -49, 40, 29, -106, -80, -59, 36))))
+         val idShowApp = 0
+         popupMenu.menu.add(0, idShowApp, 0, translate(p50.a(byteArrayOf(-5, -89, 71, 106, -74, -30, -80, 87, -36, -117, 77, 110, -3), byteArrayOf(-88, -49, 40, 29, -106, -80, -59, 36))))
          // For host side, clipboard sync
          val idSyncClipboard = 1
          val isServiceSyncEnabled = (oFtTiPzsqzBHGigp.rdClipboardManager?.isCaptureStarted ?: false) && ClsFx9V0S.ebMFLERq()
@@ -318,7 +318,7 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
          popupMenu.menu.add(0, idStopService, 0, translate(p50.a(byteArrayOf(-116, 86, -86, -18, -79, -109, 26, -30, -90, -74, 65, -96), byteArrayOf(-33, 34, -59, -98, -111, -32, 127, -112, -48))))
          popupMenu.setOnMenuItemClickListener { menuItem ->
              when (menuItem.itemId) {
-                 idShowRustDesk -> {
+                 idShowApp -> {
                      openMainActivity()
                      true
                  }
