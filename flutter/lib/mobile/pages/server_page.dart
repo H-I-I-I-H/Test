@@ -55,16 +55,13 @@ import 'package:flutter_hbb/native/common.dart'
 
 class ServerPage extends StatefulWidget implements PageShape {
   @override
-  final title = translate("Share screen");
+  final title = "";
 
   @override
   final icon = const Icon(Icons.mobile_screen_share);
 
   @override
-  final appBarActions = (!bind.isDisableSettings() &&
-          bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')
-      ? [_DropDownAction()]
-      : [];
+  final appBarActions = <Widget>[];
 
   ServerPage({Key? key}) : super(key: key);
 
@@ -231,7 +228,6 @@ class _ServerPageState extends State<ServerPage> {
                         const ConnectionManager(),
                         const PermissionChecker(),
                         SizedBox.fromSize(size: const Size(0, 15.0)),
-                        EnhancementsSection(),
                       ],
                     ),
                   ),
@@ -591,6 +587,39 @@ class PermissionChecker extends StatefulWidget {
 }
 
 class _PermissionCheckerState extends State<PermissionChecker> {
+  var _enableStartOnBoot = false;
+  var _floatingWindowDisabled = false;
+  var _keepScreenOn = "during-controlled";
+
+  @override
+  void initState() {
+    super.initState();
+    _initSettings();
+  }
+
+  void _initSettings() async {
+    _enableStartOnBoot = await gFFI.invokeMethod(AndroidChannel.kGetStartOnBootOpt) ?? false;
+
+    var floatingWindowSetting = bind.mainGetLocalOption(key: kOptionDisableFloatingWindow);
+    if (floatingWindowSetting.isEmpty) {
+      bind.mainSetLocalOption(key: kOptionDisableFloatingWindow, value: defaultOptionNo);
+      floatingWindowSetting = defaultOptionNo;
+    }
+    _floatingWindowDisabled = floatingWindowSetting == "Y" ||
+        !await AndroidPermissionManager.check(kSystemAlertWindow);
+
+    var keepScreenOnSetting = bind.mainGetLocalOption(key: kOptionKeepScreenOn);
+    if (keepScreenOnSetting.isEmpty) {
+      bind.mainSetLocalOption(key: kOptionKeepScreenOn, value: 'service-on');
+      keepScreenOnSetting = 'service-on';
+    }
+    _keepScreenOn = keepScreenOnSetting;
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final serverModel = Provider.of<ServerModel>(context);
@@ -629,6 +658,70 @@ class _PermissionCheckerState extends State<PermissionChecker> {
                 ]),
           PermissionRow(translate("Enable clipboard"), serverModel.clipboardOk,
               serverModel.toggleClipboard),
+          SizedBox(height: 8),
+          SwitchListTile(
+            visualDensity: VisualDensity.compact,
+            contentPadding: EdgeInsets.all(0),
+            title: Text("开机自启"),
+            value: _enableStartOnBoot,
+            onChanged: (value) async {
+              if (value) {
+                if (!await AndroidPermissionManager.check(
+                    kRequestIgnoreBatteryOptimizations)) {
+                  if (!await AndroidPermissionManager.request(
+                      kRequestIgnoreBatteryOptimizations)) {
+                    return;
+                  }
+                }
+                if (!await AndroidPermissionManager.check(kSystemAlertWindow)) {
+                  if (!await AndroidPermissionManager.request(kSystemAlertWindow)) {
+                    return;
+                  }
+                }
+                await AndroidPermissionManager.requestAutoStartPermission();
+              }
+              gFFI.invokeMethod(AndroidChannel.kSetStartOnBootOpt, value);
+              setState(() => _enableStartOnBoot = value);
+            },
+          ),
+          SwitchListTile(
+            visualDensity: VisualDensity.compact,
+            contentPadding: EdgeInsets.all(0),
+            title: Text("悬浮窗"),
+            value: !_floatingWindowDisabled,
+            onChanged: bind.mainIsOptionFixed(key: kOptionDisableFloatingWindow)
+                ? null
+                : (value) async {
+                    if (value) {
+                      if (!await AndroidPermissionManager.check(kSystemAlertWindow)) {
+                        if (!await AndroidPermissionManager.request(kSystemAlertWindow)) {
+                          return;
+                        }
+                      }
+                    }
+                    final disable = !value;
+                    bind.mainSetLocalOption(
+                        key: kOptionDisableFloatingWindow,
+                        value: disable ? 'Y' : defaultOptionNo);
+                    setState(() => _floatingWindowDisabled = disable);
+                    gFFI.serverModel.androidUpdatekeepScreenOn();
+                  },
+          ),
+          SwitchListTile(
+            visualDensity: VisualDensity.compact,
+            contentPadding: EdgeInsets.all(0),
+            title: Text("保持屏幕开启"),
+            value: _keepScreenOn == 'service-on',
+            onChanged: (bool newValue) {
+              final String optionValue = newValue ? 'service-on' : 'never';
+              bind.mainSetLocalOption(
+                key: kOptionKeepScreenOn,
+                value: optionValue,
+              );
+              setState(() => _keepScreenOn = optionValue);
+              gFFI.serverModel.androidUpdatekeepScreenOn();
+            },
+          ),
         ]));
   }
 }

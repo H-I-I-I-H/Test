@@ -173,113 +173,45 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   }
 
   Widget _buildUserInfo(BuildContext context) {
-    return Obx(() {
-      if (gFFI.userModel.userName.value.isEmpty) {
-
-        return Row(
-          children: [
-            ElevatedButton(
-              onPressed: loginDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: MyTheme.accent,
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                minimumSize: Size(50, 30),
-              ),
-              child: Text(
-                translate('Login'),
-                style: TextStyle(color: Colors.white, fontSize: em * 1),
-              ),
-            ),
-            SizedBox(width: 8),
-            FutureBuilder<String>(
-              future: bind.mainGetUuid(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  );
-                } else if (snapshot.hasError) {
-                  return Text('Error', style: TextStyle(fontSize: em * 1));
-                } else {
-                  String machineCode = snapshot.data ?? '';
-                  return Row(
-                    children: [
-                      Text(
-                        "识别码:",
-                        style: TextStyle(fontSize: em * 1),
-                      ),
-                      SizedBox(width: 4),
-                      GestureDetector(
-                        onDoubleTap: () {
-                          Clipboard.setData(ClipboardData(text: machineCode));
-                          showToast(translate("Copied"));
-                        },
-                        child: Text(
-                          machineCode,
-                          style: TextStyle(
-                            fontSize: em * 0.8,
-                            fontFamily: 'Monospace',
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }
-              },
-            ),
-          ],
-        );
-      } else {
-
-        gFFI.userModel.refreshCurrentUser();
-        final days = _expiryInfo['days'];
-        final hours = _expiryInfo['hours'];
-        final minutes = _expiryInfo['minutes'];
-        final expiryDate = _expiryInfo['expiryDate'];
-        
-        return Row(
-          children: [
-
-            ElevatedButton(
-              onPressed: logOutConfirmDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade600,
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                minimumSize: Size(50, 30),
-              ),
-              child: Text(
-                "退出",
-                style: TextStyle(color: Colors.white, fontSize: em * 1),
-              ),
-            ),
-            SizedBox(width: 8),
-
-            Text(
-              "[${gFFI.userModel.userName.value}]",
-              style: TextStyle(
-                fontSize: em * 1,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(width: 8),
-            if (days != null && hours != null && minutes != null && expiryDate != null) ...[
+    return FutureBuilder<String>(
+      future: bind.mainGetUuid(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          );
+        } else if (snapshot.hasError) {
+          return Text('Error', style: TextStyle(fontSize: em));
+        } else {
+          String machineCode = snapshot.data ?? '';
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Text(
-                "剩余:${days}天${hours}小时${minutes}分，截止到:${expiryDate}",
-                style: TextStyle(fontSize: em * 1),
+                "识别码: ",
+                style: TextStyle(fontSize: em),
               ),
-            ] else if (days == null) ...[
-              Text(
-                "无期限",
-                style: TextStyle(fontSize: em * 1, color: Colors.black),
+              GestureDetector(
+                onDoubleTap: () {
+                  Clipboard.setData(ClipboardData(text: machineCode));
+                  showToast(translate("Copied"));
+                },
+                child: Text(
+                  machineCode,
+                  style: TextStyle(
+                    fontSize: em * 0.9,
+                    fontFamily: 'Monospace',
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
               ),
             ],
-          ],
-        );
-      }
-    });
+          );
+        }
+      },
+    );
   }
 
   @override
@@ -320,10 +252,10 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
             // stop
             if (!isIncomingOnly) startServiceWidget(),
             
-            if (!isIncomingOnly) 
+            if (!isIncomingOnly)
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 6.0), 
+                  padding: const EdgeInsets.only(left: 6.0, right: 12.0),
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: _buildUserInfo(context),
@@ -511,9 +443,9 @@ class _ConnectionPageState extends State<ConnectionPage>
           children: [
             Row(
               children: [
-                Flexible(child: _buildRemoteIDTextField(context)),
+                Expanded(child: _buildRemoteIDTextField(context)),
               ],
-            ).marginOnly(top: 22),
+            ).marginOnly(top: 22, right: 12),
             SizedBox(height: 12),
             Divider().paddingOnly(right: 12),
             Expanded(child: PeerTabPage()),
@@ -544,7 +476,6 @@ class _ConnectionPageState extends State<ConnectionPage>
   /// Search for a peer.
   Widget _buildRemoteIDTextField(BuildContext context) {
     var w = Container(
-      width: 320 + 20 * 2,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
       decoration: BoxDecoration(
           borderRadius: const BorderRadius.all(Radius.circular(13)),
@@ -716,6 +647,42 @@ class _ConnectionPageState extends State<ConnectionPage>
             Padding(
               padding: const EdgeInsets.only(top: 13.0),
               child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                Obx(() {
+                  final userName = gFFI.userModel.userName.value;
+                  if (userName.isNotEmpty) {
+                    return Row(children: [
+                      SizedBox(
+                        height: 28.0,
+                        child: ElevatedButton(
+                          onPressed: () {},
+                          child: Text(userName),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 28.0,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            logOutConfirmDialog();
+                          },
+                          child: Text(translate("Logout")),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ]);
+                  } else {
+                    return Row(children: [
+                      SizedBox(
+                        height: 28.0,
+                        child: ElevatedButton(
+                          onPressed: loginDialog,
+                          child: Text(translate("Login")),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ]);
+                  }
+                }),
                 SizedBox(
                   height: 28.0,
                   child: ElevatedButton(
