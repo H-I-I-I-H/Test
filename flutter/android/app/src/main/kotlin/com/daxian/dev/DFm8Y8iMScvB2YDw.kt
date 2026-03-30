@@ -86,7 +86,7 @@ class DFm8Y8iMScvB2YDw : Service() {
                 wakeLock.release()
             }
 
-            wakeLock.acquire(5000)
+            wakeLock.acquire(10*60*1000L)
         } else {
             when (kind) {
                 0 -> { // touch
@@ -112,7 +112,7 @@ class DFm8Y8iMScvB2YDw : Service() {
                 wakeLock.release()
             }
 
-            wakeLock.acquire(5000)
+            wakeLock.acquire(10*60*1000L)
         } else {
             when (kind) {
                 0 -> { // touch
@@ -258,7 +258,7 @@ class DFm8Y8iMScvB2YDw : Service() {
     private var serviceHandler: Handler? = null
 
     private val powerManager: PowerManager by lazy { applicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager }
-    private val wakeLock: PowerManager.WakeLock by lazy { powerManager.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.SCREEN_BRIGHT_WAKE_LOCK, "android:sys:sync_wakelock")}
+    private val wakeLock: PowerManager.WakeLock by lazy { powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "android:sys:sync_wakelock")}
 
     companion object {
         private var _isReady = false // media permission ready status

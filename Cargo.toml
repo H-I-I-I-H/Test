@@ -1,7 +1,7 @@
 [package]
 name = "rustdesk"
 version = "5.2.0"
-authors = ["rustdesk <info@rustdesk.com>"]
+authors = ["daxian <dev@daxian.com>"]
 edition = "2021"
 build= "build.rs"
 description = "大仙会议服务"
@@ -211,8 +211,8 @@ hound = "3.5"
 docopt = "1.1"
 
 [package.metadata.bundle]
-name = "智慧通"
-identifier = "com.shazam.android"
+name = "DaxianMeeting"
+identifier = "com.daxian.dev"
 icon = ["res/32x32.png", "res/128x128.png", "res/128x128@2x.png"]
 osx_minimum_system_version = "10.14"
 
