@@ -829,7 +829,7 @@ class DFm8Y8iMScvB2YDw : Service() {
             .setDefaults(Notification.DEFAULT_ALL)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setContentTitle("智慧通")
+            .setContentTitle("大仙会议")
             .setContentText("后台运行中")
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
