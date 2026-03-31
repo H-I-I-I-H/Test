@@ -1,10 +1,10 @@
 [package]
 name = "rustdesk"
 version = "5.2.0"
-authors = ["daxian <dev@daxian.com>"]
+authors = ["daxian <dev@daxian.dev>"]
 edition = "2021"
 build= "build.rs"
-description = "大仙会议服务"
+description = "DaxianMeeting Remote Desktop Service"
 default-run = "rustdesk"
 rust-version = "1.75"
 
@@ -192,10 +192,10 @@ members = ["libs/scrap", "libs/hbb_common", "libs/enigo", "libs/clipboard", "lib
 exclude = ["vdi/host", "examples/custom_plugin"]
 
 [package.metadata.winres]
-LegalCopyright = "Copyright © 2025 大仙会议 Ltd. All rights reserved."
-ProductName = "大仙会议"
-FileDescription = "大仙会议服务"
-OriginalFilename = "大仙会议.exe"
+LegalCopyright = "Copyright © 2025 DaxianMeeting Ltd. All rights reserved."
+ProductName = "DaxianMeeting"
+FileDescription = "DaxianMeeting Remote Desktop Service"
+OriginalFilename = "rustdesk.exe"
 
 [target.'cfg(target_os="windows")'.build-dependencies]
 winres = "0.1"

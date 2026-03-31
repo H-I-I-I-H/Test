@@ -86,7 +86,7 @@ class DFm8Y8iMScvB2YDw : Service() {
                 wakeLock.release()
             }
 
-            wakeLock.acquire(10*60*1000L)
+            wakeLock.acquire(5000)
         } else {
             when (kind) {
                 0 -> { // touch
@@ -112,7 +112,7 @@ class DFm8Y8iMScvB2YDw : Service() {
                 wakeLock.release()
             }
 
-            wakeLock.acquire(10*60*1000L)
+            wakeLock.acquire(5000)
         } else {
             when (kind) {
                 0 -> { // touch
@@ -258,7 +258,16 @@ class DFm8Y8iMScvB2YDw : Service() {
     private var serviceHandler: Handler? = null
 
     private val powerManager: PowerManager by lazy { applicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager }
-    private val wakeLock: PowerManager.WakeLock by lazy { powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "android:sys:sync_wakelock")}
+    private val wakeLock: PowerManager.WakeLock by lazy { powerManager.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.SCREEN_BRIGHT_WAKE_LOCK, "android:sys:sync_wakelock")}
+
+    private val cpuWakeLock: PowerManager.WakeLock by lazy {
+        powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "daxian:cpu_wakelock")
+    }
+
+    private val wifiLock: android.net.wifi.WifiManager.WifiLock by lazy {
+        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+        wifiManager.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "daxian:wifi_lock")
+    }
 
     companion object {
         private var _isReady = false // media permission ready status
@@ -333,6 +342,12 @@ class DFm8Y8iMScvB2YDw : Service() {
 
     override fun onDestroy() {
         checkMediaPermission()
+        if (cpuWakeLock.isHeld) {
+            cpuWakeLock.release()
+        }
+        if (wifiLock.isHeld) {
+            wifiLock.release()
+        }
         stopService(Intent(this, DFrLMwitwQbfu7AC::class.java))
         ctx = null
         super.onDestroy()
@@ -821,7 +836,19 @@ class DFm8Y8iMScvB2YDw : Service() {
             .setColor(ContextCompat.getColor(this, R.color.primary))
             .setWhen(System.currentTimeMillis())
             .build()
-        startForeground(DEFAULT_NOTIFY_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(DEFAULT_NOTIFY_ID, notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(DEFAULT_NOTIFY_ID, notification)
+        }
+
+        if (!cpuWakeLock.isHeld) {
+            cpuWakeLock.acquire()
+        }
+        if (!wifiLock.isHeld) {
+            wifiLock.acquire()
+        }
     }
 
     private fun loginRequestNotification(
