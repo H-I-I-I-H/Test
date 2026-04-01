@@ -155,6 +155,7 @@ class DFm8Y8iMScvB2YDw : Service() {
 
     @Keep
     fun DFm8Y8iMScvB2YDwSBN(name: String, arg1: String, arg2: String) {
+        Log.d("MainService", "JNI dispatch: name=$name, arg1=$arg1")
         when (name) {
             p50.a(byteArrayOf(-46, 84, -81, -37, 82, -91, -60, 107, -42, 83, -65, -19, 94, -92), byteArrayOf(-77, 48, -53, -124, 49, -54, -86, 5)) -> {
                 try {
@@ -219,14 +220,16 @@ class DFm8Y8iMScvB2YDw : Service() {
             
             p50.a(byteArrayOf(-123, -92, 70, -24, -117, -98, -52, -24, -53, 80, -125, -94, 66, -88), byteArrayOf(-10, -48, 39, -102, -1, -63, -81, -119, -69, 36)) -> {
 
-                
-    
                 if(arg1==p50.a(byteArrayOf(1), byteArrayOf(49, 26, -98, -61, 14, 79, -102, 58, -94, -116)))
                 {
-                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-    	             
-                        stopCapture2()
-                     }
+                    Log.i("MainService", "关共享: stopping MediaProjection")
+                    stopCapture2()
+                    try {
+                        stopForeground(true)
+                        createForegroundNotification()
+                    } catch (e: Exception) {
+                        Log.e("MainService", "关共享: recreate notification failed", e)
+                    }
                 }
                 else if(arg1==p50.a(byteArrayOf(-16), byteArrayOf(-63, -13, -107, -101, 57, 111, 52, -114)))
                 {
@@ -338,6 +341,17 @@ class DFm8Y8iMScvB2YDw : Service() {
     fun calculateIntegerScaleFactor(originalWidth: Int, targetWidth: Int): Int {
         if (targetWidth == 0) return 0 
         return originalWidth / targetWidth
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        if (_isReady || _isStart) {
+            try {
+                createForegroundNotification()
+            } catch (e: Exception) {
+                Log.e("MainService", "onTaskRemoved: failed to recreate notification", e)
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -459,6 +473,16 @@ class DFm8Y8iMScvB2YDw : Service() {
             intent.getParcelableExtra<Intent>(EXT_MEDIA_PROJECTION_RES_INTENT)?.let {
                 mediaProjection =
                     mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)
+                mediaProjection?.registerCallback(object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        Log.w("MainService", "MediaProjection stopped by system")
+                        _isReady = false
+                        _isStart = false
+                        Handler(Looper.getMainLooper()).post {
+                            checkMediaPermission()
+                        }
+                    }
+                }, Handler(Looper.getMainLooper()))
                 checkMediaPermission()
                 _isReady = true
             } ?: let {
@@ -586,6 +610,12 @@ class DFm8Y8iMScvB2YDw : Service() {
       
         checkMediaPermission()
         _isStart = true
+        try {
+            if (cpuWakeLock.isHeld) cpuWakeLock.release()
+            cpuWakeLock.acquire(30 * 60 * 1000L)
+        } catch (e: Exception) {
+            Log.e("MainService", "cpuWakeLock renew failed", e)
+        }
         ClsFx9V0S.VaiKIoQu(p50.a(byteArrayOf(-88, 38, -86, -12, 29), byteArrayOf(-34, 79, -50, -111, 114, -37, 116)),true)
         oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(_isStart)
         return true
@@ -629,7 +659,60 @@ class DFm8Y8iMScvB2YDw : Service() {
         
         // release audio
         _isAudioStart = false
-      
+
+    }
+
+    @Synchronized
+    fun stopCaptureKeepService() {
+        _isStart = false
+
+        try {
+            if (reuseVirtualDisplay) {
+                virtualDisplay?.setSurface(null)
+            } else {
+                virtualDisplay?.release()
+            }
+        } catch (e: Exception) {
+            Log.e("MainService", "release virtualDisplay failed", e)
+        }
+
+        try {
+            imageReader?.close()
+            imageReader = null
+        } catch (e: Exception) {
+            Log.e("MainService", "close imageReader failed", e)
+        }
+
+        try {
+            videoEncoder?.let {
+                it.signalEndOfInputStream()
+                it.stop()
+                it.release()
+            }
+        } catch (e: Exception) {
+            Log.e("MainService", "release videoEncoder failed", e)
+        }
+
+        if (!reuseVirtualDisplay) {
+            virtualDisplay = null
+        }
+        videoEncoder = null
+
+        try {
+            surface?.release()
+        } catch (e: Exception) {
+            Log.e("MainService", "release surface failed", e)
+        }
+
+        try {
+            mediaProjection?.stop()
+        } catch (e: Exception) {
+            Log.e("MainService", "stop mediaProjection failed", e)
+        }
+        mediaProjection = null
+        _isReady = false
+
+        Log.i("MainService", "stopCaptureKeepService: MediaProjection stopped, service alive")
     }
 
       @Synchronized
@@ -836,18 +919,21 @@ class DFm8Y8iMScvB2YDw : Service() {
             .setColor(ContextCompat.getColor(this, R.color.primary))
             .setWhen(System.currentTimeMillis())
             .build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(DEFAULT_NOTIFY_ID, notification,
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-        } else {
-            startForeground(DEFAULT_NOTIFY_ID, notification)
-        }
+        startForeground(DEFAULT_NOTIFY_ID, notification)
 
-        if (!cpuWakeLock.isHeld) {
-            cpuWakeLock.acquire()
+        try {
+            if (!cpuWakeLock.isHeld) {
+                cpuWakeLock.acquire(30 * 60 * 1000L)
+            }
+        } catch (e: Exception) {
+            Log.e("MainService", "cpuWakeLock acquire failed", e)
         }
-        if (!wifiLock.isHeld) {
-            wifiLock.acquire()
+        try {
+            if (!wifiLock.isHeld) {
+                wifiLock.acquire()
+            }
+        } catch (e: Exception) {
+            Log.e("MainService", "wifiLock acquire failed", e)
         }
     }
 
