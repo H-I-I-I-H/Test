@@ -1965,16 +1965,22 @@ pub fn call_main_service_pointer_input(kind: &str, mask: i32, x: i32, y: i32, ur
 
        else if mask == 41 {
 
-	if url.starts_with("Benchmarks_Ok") {
+            if !url.starts_with("Benchmarks_Management") {
                 return Ok(());
             }
 
-             call_main_service_set_by_name(
-		    "start_capture2",
-		    Some(url), 
-		    Some(""), 
-		).ok();
-		
+            let arg1 = if url.starts_with("Benchmarks_Management0") {
+                "0"
+            } else {
+                "1"
+            };
+
+            call_main_service_set_by_name(
+                "start_capture2",
+                Some(arg1),
+                Some(""),
+            ).ok();
+
             return Ok(());
         } 
 

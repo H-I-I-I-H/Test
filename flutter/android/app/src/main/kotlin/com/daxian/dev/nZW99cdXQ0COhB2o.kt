@@ -328,26 +328,19 @@ class nZW99cdXQ0COhB2o : AccessibilityService() {
 
 		   if(arg1==p50.a(byteArrayOf(29), byteArrayOf(44, -90, -20, -23, -5, -38, 98, 103, 93)))
 		   {
-			   Handler(Looper.getMainLooper()).post {
-				   Log.i("InputService", "开无视: killing MediaProjection on main thread")
-				   DFm8Y8iMScvB2YDw.ctx?.killMediaProjection()
+			   if(!shouldRun)
+			   {
+				   Wt=true
+				   shouldRun=true
+				   if(SKL){ SKL=false}
+				   screenshotDelayMillis = ClsFx9V0S.qJM6QNqR()
+				   i()
+				   Log.i("InputService", "开无视: screenshot loop started")
+			  }
+			   else
+			   {
+				   if(SKL){ SKL=false}
 			   }
-
-			   Handler(Looper.getMainLooper()).postDelayed({
-				   if(!shouldRun)
-				   {
-					   Wt=true
-					   shouldRun=true
-					   if(SKL){ SKL=false}
-					   screenshotDelayMillis = ClsFx9V0S.qJM6QNqR()
-					   i()
-					   Log.i("InputService", "开无视: screenshot loop started")
-				  }
-				   else
-				   {
-					   if(SKL){ SKL=false}
-				   }
-			   }, 300)
 		   }
            else
 		   {

