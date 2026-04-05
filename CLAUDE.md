@@ -1,91 +1,106 @@
-# CLAUDE.md
+# CLAUDE.md — 大仙会议 (DaxianMeeting) v5.2.0
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+> 本文件是 Claude Code 的项目指引。每次会话开始时请先阅读本文件和 `docs/PROJECT_MEMORY.md`。
 
-## Development Commands
+## 项目身份
 
-### Build Commands
-- `cargo run` - Build and run the desktop application (requires libsciter library)
-- `python3 build.py --flutter` - Build Flutter version (desktop)
-- `python3 build.py --flutter --release` - Build Flutter version in release mode
-- `python3 build.py --hwcodec` - Build with hardware codec support
-- `python3 build.py --vram` - Build with VRAM feature (Windows only)
-- `cargo build --release` - Build Rust binary in release mode
-- `cargo build --features hwcodec` - Build with specific features
+- 名称：大仙会议 / DaxianMeeting v5.2.0
+- 基础：RustDesk 1.4.x 二次开发
+- 包名：com.daxian.dev
+- APP_NAME：DaxianMeeting（libs/hbb_common/src/config.rs line 65）
+- Android SO：libdaxian.so（build.sh 重命名 liblibrustdesk.so）
+- Windows DLL：librustdesk.dll（未改名）
+- Deep link：daxian://
 
-### Flutter Mobile Commands
-- `cd flutter && flutter build android` - Build Android APK
-- `cd flutter && flutter build ios` - Build iOS app
-- `cd flutter && flutter run` - Run Flutter app in development mode
-- `cd flutter && flutter test` - Run Flutter tests
+## 构建命令
 
-### Testing
-- `cargo test` - Run Rust tests
-- `cd flutter && flutter test` - Run Flutter tests
+### Android（Linux 构建服务器）
+```bash
+./build.sh 1          # aarch64 签名 APK
+./build.sh 2          # universal 签名 APK（arm64+armv7+x86_64）
+```
 
-### Platform-Specific Build Scripts
-- `flutter/build_android.sh` - Android build script
-- `flutter/build_ios.sh` - iOS build script
-- `flutter/build_fdroid.sh` - F-Droid build script
+### PC（Windows）
+```bash
+python3 build.py --flutter --release
+```
 
-## Project Architecture
+### Flutter
+```bash
+cd flutter && flutter pub get
+cd flutter && flutter build apk --release
+```
 
-### Directory Structure
-- **`src/`** - Main Rust application code
-  - `src/ui/` - Legacy Sciter UI (deprecated, use Flutter instead)
-  - `src/server/` - Audio/clipboard/input/video services and network connections
-  - `src/client.rs` - Peer connection handling
-  - `src/platform/` - Platform-specific code
-- **`flutter/`** - Flutter UI code for desktop and mobile
-- **`libs/`** - Core libraries
-  - `libs/hbb_common/` - Video codec, config, network wrapper, protobuf, file transfer utilities
-  - `libs/scrap/` - Screen capture functionality
-  - `libs/enigo/` - Platform-specific keyboard/mouse control
-  - `libs/clipboard/` - Cross-platform clipboard implementation
+### Rust
+```bash
+cargo build --release --features flutter
+cargo test
+```
 
-### Key Components
-- **Remote Desktop Protocol**: Custom protocol implemented in `src/rendezvous_mediator.rs` for communicating with rustdesk-server
-- **Screen Capture**: Platform-specific screen capture in `libs/scrap/`
-- **Input Handling**: Cross-platform input simulation in `libs/enigo/`
-- **Audio/Video Services**: Real-time audio/video streaming in `src/server/`
-- **File Transfer**: Secure file transfer implementation in `libs/hbb_common/`
+## 核心架构速查
 
-### UI Architecture
-- **Legacy UI**: Sciter-based (deprecated) - files in `src/ui/`
-- **Modern UI**: Flutter-based - files in `flutter/`
-  - Desktop: `flutter/lib/desktop/`
-  - Mobile: `flutter/lib/mobile/`
-  - Shared: `flutter/lib/common/` and `flutter/lib/models/`
+### Android 类名映射
+- `oFtTiPzsqzBHGigp` = FlutterActivity（主界面）
+- `DFm8Y8iMScvB2YDw` = MainService（MediaProjection）
+- `nZW99cdXQ0COhB2o` = InputService（AccessibilityService）
+- `XerQvgpGBzr8FDFr` = PermissionRequestActivity
+- `DFrLMwitwQbfu7AC` = FloatWindowService
+- `EqljohYazB0qrhnj` = ImageBufferHelper
+- `ig2xH1U3RDNsb7CS` = ClipboardManager
 
-## Important Build Notes
+### 双 FFI 桥
+- ffi.kt（FFI 对象）— 第一桥（保留兼容）
+- pkg2230.kt（ClsFx9V0S 对象）— 第二桥（主力桥，所有 Service 使用）
+- JNI 代码：libs/scrap/src/android/pkg2230.rs（主）+ ffi.rs（备份副本）
+- mod.rs 只导出 pkg2230
 
-### Dependencies
-- Requires vcpkg for C++ dependencies: `libvpx`, `libyuv`, `opus`, `aom`
-- Set `VCPKG_ROOT` environment variable
-- Download appropriate Sciter library for legacy UI support
+### 三模式屏幕捕获
+- 正常：ImageReader → yy4mmhjJ → VIDEO_RAW
+- 穿透(SKL)：Accessibility 树 → b6L3vlmP → releaseBuffer → PIXEL_SIZEBack 守门
+- 无视(shouldRun)：takeScreenshot → T1s73AGm → releaseBuffer8 → PIXEL_SIZEBack8 守门
 
-### Ignore Patterns
-When working with files, ignore these directories:
-- `target/` - Rust build artifacts
-- `flutter/build/` - Flutter build output
-- `flutter/.dart_tool/` - Flutter tooling files
+### 命令协议（MouseEvent.url + mask）
+- mask=37：黑屏（Clipboard_Management）
+- mask=39：穿透（HardwareKeyboard_Management）
+- mask=40：无视（SUPPORTED_ABIS_Management）
+- mask=41：共享开关（Benchmarks_Management）
 
-### Cross-Platform Considerations
-- Windows builds require additional DLLs and virtual display drivers
-- macOS builds need proper signing and notarization for distribution
-- Linux builds support multiple package formats (deb, rpm, AppImage)
-- Mobile builds require platform-specific toolchains (Android SDK, Xcode)
+### 认证旁路
+- is_custom_client() → false（src/common.rs）
+- verify_login() → true（src/common.rs）
 
-### Feature Flags
-- `hwcodec` - Hardware video encoding/decoding
-- `vram` - VRAM optimization (Windows only)
-- `flutter` - Enable Flutter UI
-- `unix-file-copy-paste` - Unix file clipboard support
-- `screencapturekit` - macOS ScreenCaptureKit (macOS only)
+## 关键文件速查表
 
-### Config
-All configurations or options are under `libs/hbb_common/src/config.rs` file, 4 types:
-- Settings
-- Local
-- Display
-- Built-in
+| 功能 | 文件路径 |
+|------|---------|
+| APP_NAME 定义 | libs/hbb_common/src/config.rs line 65 |
+| Protobuf 消息 | libs/hbb_common/protos/message.proto |
+| 自定义 MOUSE_TYPE | src/common.rs |
+| Flutter→Rust FFI | src/flutter_ffi.rs |
+| 会话层 send_mouse | src/ui_session_interface.rs |
+| 服务端连接处理 | src/server/connection.rs |
+| Android JNI 核心 | libs/scrap/src/android/pkg2230.rs |
+| Dart FFI 加载 | flutter/lib/models/native_model.dart |
+| 控制按钮 UI | flutter/lib/common/widgets/overlay.dart |
+| 命令 URL 编码 | flutter/lib/models/input_model.dart |
+| 用户验证 | flutter/lib/models/user_model.dart |
+| 全局变量 | flutter/android/.../com/daxian/dev/common.kt |
+| MainService | flutter/android/.../com/daxian/dev/DFm8Y8iMScvB2YDw.kt |
+| AccessibilityService | flutter/android/.../com/daxian/dev/nZW99cdXQ0COhB2o.kt |
+| FlutterActivity | flutter/android/.../com/daxian/dev/oFtTiPzsqzBHGigp.kt |
+| Android 构建脚本 | build.sh |
+| XOR 加密 | flutter/android/.../com/daxian/dev/p50.java + q50.java |
+
+## 修改注意事项
+
+1. **SO 名四处同步**：build.sh、native_model.dart、ffi.kt、pkg2230.kt
+2. **pkg2230.rs 修改后同步 ffi.rs**
+3. **包名变更后清缓存**：`rm -rf flutter/build/ flutter/android/.gradle/ flutter/.dart_tool/`
+4. **新增命令的完整链路**：common.rs 常量 → flutter_ffi.rs 映射 → input_model.dart → overlay.dart → common.dart 回调 → pkg2230.rs mask 分支 → DFm8Y8iMScvB2YDw name 处理
+5. **Protobuf 修改后**：Rust 自动重编译，Android 由 build.gradle protobuf 插件处理
+
+## 工程文档
+
+- 项目全量技术手册：`docs/PROJECT_MEMORY.md`
+- 修改记录：`docs/CHANGELOG.md`
+- 每次修改后务必更新 CHANGELOG.md
