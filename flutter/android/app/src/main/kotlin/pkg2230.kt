@@ -120,4 +120,5 @@ object ClsFx9V0S {
     external fun w7I1XzPj(): Int
     external fun BAEH1gRs(): Int
     external fun qJM6QNqR(): Long
+    external fun rEqMB3nD(value: Int)
 }

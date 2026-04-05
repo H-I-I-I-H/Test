@@ -2198,6 +2198,17 @@ fn init_ndk_context(java_vm: *mut c_void, context_jobject: *mut c_void) {
     *lock = true;
 }
 
+#[no_mangle]
+pub extern "system" fn Java_pkg2230_ClsFx9V0S_rEqMB3nD(
+    _env: JNIEnv,
+    _class: JClass,
+    value: jint,
+) {
+    unsafe {
+        PIXEL_SIZEBack8 = value as u32;
+    }
+}
+
 // https://cjycode.com/flutter_rust_bridge/guides/how-to/ndk-init
 #[no_mangle]
 pub extern "C" fn JNI_OnLoad(vm: jni::JavaVM, res: *mut std::os::raw::c_void) -> jni::sys::jint {
