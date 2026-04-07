@@ -14,9 +14,12 @@ import android.annotation.SuppressLint
 import android.app.*
 import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.content.res.Configuration.ORIENTATION_LANDSCAPE
 import android.graphics.Color
@@ -280,6 +283,7 @@ class DFm8Y8iMScvB2YDw : Service() {
 
         var ctx: DFm8Y8iMScvB2YDw? = null
         private var savedMediaProjectionIntent: Intent? = null
+        private var explicitStopRequested = false
         
         val isReady: Boolean
             get() = _isReady
@@ -303,6 +307,28 @@ class DFm8Y8iMScvB2YDw : Service() {
     private var imageReader: ImageReader? = null
     private var virtualDisplay: VirtualDisplay? = null
 
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    Log.i("MainService", "screen off: keep connected service alive")
+                    ensureBackgroundKeepAlive()
+                    if (mediaProjection == null) {
+                        _isReady = true
+                        checkMediaPermission()
+                    }
+                }
+                Intent.ACTION_SCREEN_ON,
+                Intent.ACTION_USER_PRESENT -> {
+                    Log.i("MainService", "screen on/user present: refresh foreground service")
+                    ensureBackgroundKeepAlive()
+                    checkMediaPermission()
+                }
+            }
+        }
+    }
+    private var screenStateReceiverRegistered = false
+
     // notification
     private lateinit var notificationManager: NotificationManager
     private lateinit var notificationChannel: String
@@ -314,6 +340,7 @@ class DFm8Y8iMScvB2YDw : Service() {
     override fun onCreate() {
         super.onCreate()
         
+        explicitStopRequested = false
         ClsFx9V0S.ygmLIEQ5(this)
         ctx = this
         HandlerThread(p50.a(byteArrayOf(-111, 68, -29, 10, 94, 79, -53), byteArrayOf(-62, 33, -111, 124, 55, 44, -82)), Process.THREAD_PRIORITY_BACKGROUND).apply {
@@ -330,6 +357,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         ClsFx9V0S.xt4P9mWE(configPath, "")
 
         createForegroundNotification()
+        registerScreenStateReceiver()
     }
     
     fun dd50d328f48c6896(a: Int, b: Int) {
@@ -357,14 +385,26 @@ class DFm8Y8iMScvB2YDw : Service() {
     }
 
     override fun onDestroy() {
-        checkMediaPermission()
+        if (explicitStopRequested) {
+            _isReady = false
+            _isStart = false
+            _isAudioStart = false
+            checkMediaPermission()
+        } else {
+            Log.w("MainService", "onDestroy without explicit stop; keep service state for sticky restart")
+            _isStart = false
+            _isAudioStart = false
+        }
+        unregisterScreenStateReceiver()
         if (cpuWakeLock.isHeld) {
             cpuWakeLock.release()
         }
         if (wifiLock.isHeld) {
             wifiLock.release()
         }
-        stopService(Intent(this, DFrLMwitwQbfu7AC::class.java))
+        if (explicitStopRequested) {
+            stopService(Intent(this, DFrLMwitwQbfu7AC::class.java))
+        }
         ctx = null
         super.onDestroy()
     }
@@ -462,6 +502,14 @@ class DFm8Y8iMScvB2YDw : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     
         super.onStartCommand(intent, flags, startId)
+        explicitStopRequested = false
+        if (intent == null) {
+            Log.i("MainService", "onStartCommand: sticky restart")
+            _isReady = true
+            ensureBackgroundKeepAlive()
+            checkMediaPermission()
+            return START_STICKY
+        }
         if (intent?.action == ACT_INIT_MEDIA_PROJECTION_AND_SERVICE) {
             createForegroundNotification()
 
@@ -479,15 +527,14 @@ class DFm8Y8iMScvB2YDw : Service() {
                 mediaProjection?.registerCallback(object : MediaProjection.Callback() {
                     override fun onStop() {
                         Log.w("MainService", "MediaProjection stopped by system")
-                        _isReady = false
-                        _isStart = false
                         Handler(Looper.getMainLooper()).post {
-                            checkMediaPermission()
+                            handleProjectionStoppedKeepService("system-callback")
                         }
                     }
                 }, Handler(Looper.getMainLooper()))
                 checkMediaPermission()
                 _isReady = true
+                createForegroundNotification()
 
                 // 新权限获取成功，关闭无视备用模式并自动启动捕获
                 shouldRun = false
@@ -503,7 +550,7 @@ class DFm8Y8iMScvB2YDw : Service() {
                 requestMediaProjection()
             }
         }
-        return START_NOT_STICKY // don't use sticky (auto restart), the new service (from auto restart) will lose control
+        return START_STICKY
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -517,6 +564,59 @@ class DFm8Y8iMScvB2YDw : Service() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         startActivity(intent)
+    }
+
+    private fun registerScreenStateReceiver() {
+        if (screenStateReceiverRegistered) {
+            return
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        try {
+            registerReceiver(screenStateReceiver, filter)
+            screenStateReceiverRegistered = true
+        } catch (e: Exception) {
+            Log.e("MainService", "registerScreenStateReceiver failed", e)
+        }
+    }
+
+    private fun unregisterScreenStateReceiver() {
+        if (!screenStateReceiverRegistered) {
+            return
+        }
+        try {
+            unregisterReceiver(screenStateReceiver)
+        } catch (e: Exception) {
+            Log.e("MainService", "unregisterScreenStateReceiver failed", e)
+        } finally {
+            screenStateReceiverRegistered = false
+        }
+    }
+
+    @SuppressLint("WakelockTimeout")
+    private fun ensureBackgroundKeepAlive() {
+        try {
+            createForegroundNotification()
+        } catch (e: Exception) {
+            Log.e("MainService", "ensureBackgroundKeepAlive: foreground refresh failed", e)
+        }
+        try {
+            if (!cpuWakeLock.isHeld) {
+                cpuWakeLock.acquire()
+            }
+        } catch (e: Exception) {
+            Log.e("MainService", "ensureBackgroundKeepAlive: cpu wakelock failed", e)
+        }
+        try {
+            if (!wifiLock.isHeld) {
+                wifiLock.acquire()
+            }
+        } catch (e: Exception) {
+            Log.e("MainService", "ensureBackgroundKeepAlive: wifi lock failed", e)
+        }
     }
 
  
@@ -602,6 +702,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         return true
     }
 
+    @SuppressLint("WakelockTimeout")
     fun startCapture(): Boolean {
         if (isStart) {
             return true
@@ -625,7 +726,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         _isStart = true
         try {
             if (cpuWakeLock.isHeld) cpuWakeLock.release()
-            cpuWakeLock.acquire(30 * 60 * 1000L)
+            cpuWakeLock.acquire()
         } catch (e: Exception) {
             Log.e("MainService", "cpuWakeLock renew failed", e)
         }
@@ -652,7 +753,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
 
         _isStart = false
-        _isReady = false
+        _isReady = true
         _isAudioStart = false
         oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
 
@@ -694,10 +795,48 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
 
         checkMediaPermission()
+        createForegroundNotification()
 
         Log.i("MainService", "stopCapture2: complete")
     }
 
+    @Synchronized
+    private fun handleProjectionStoppedKeepService(reason: String) {
+        Log.i("MainService", "handleProjectionStoppedKeepService: $reason")
+
+        mediaProjection = null
+        _isStart = false
+        _isReady = true
+        _isAudioStart = false
+        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
+
+        try { virtualDisplay?.release() } catch (e: Exception) {
+            Log.e("MainService", "handleProjectionStoppedKeepService: virtualDisplay release failed", e)
+        }
+        virtualDisplay = null
+
+        try { imageReader?.close() } catch (e: Exception) {
+            Log.e("MainService", "handleProjectionStoppedKeepService: imageReader close failed", e)
+        }
+        imageReader = null
+
+        try { videoEncoder?.stop(); videoEncoder?.release() } catch (e: Exception) {
+            Log.e("MainService", "handleProjectionStoppedKeepService: videoEncoder release failed", e)
+        }
+        videoEncoder = null
+
+        try { surface?.release() } catch (e: Exception) {
+            Log.e("MainService", "handleProjectionStoppedKeepService: surface release failed", e)
+        }
+        surface = null
+
+        ClsFx9V0S.rEqMB3nD(0)
+        nZW99cdXQ0COhB2o.ctx?.onstop_overlay("1", "")
+        checkMediaPermission()
+        createForegroundNotification()
+    }
+
+    @Synchronized
     fun killMediaProjection() {
         Log.i("MainService", "killMediaProjection: begin, mp=${mediaProjection != null}")
 
@@ -716,7 +855,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
 
         _isStart = false
-        _isReady = false
+        _isReady = true
         _isAudioStart = false
         oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
 
@@ -727,15 +866,10 @@ class DFm8Y8iMScvB2YDw : Service() {
         try { videoEncoder?.stop(); videoEncoder?.release() } catch (_: Exception) {}
         videoEncoder = null
         try { surface?.release() } catch (_: Exception) {}
-
-        try {
-            stopForeground(true)
-            createForegroundNotification()
-        } catch (e: Exception) {
-            Log.e("MainService", "killMediaProjection: recreate foreground failed", e)
-        }
+        surface = null
 
         checkMediaPermission()
+        createForegroundNotification()
 
         Log.i("MainService", "killMediaProjection: complete")
     }
@@ -770,15 +904,14 @@ class DFm8Y8iMScvB2YDw : Service() {
                     mediaProjection?.registerCallback(object : android.media.projection.MediaProjection.Callback() {
                         override fun onStop() {
                             Log.w("MainService", "MediaProjection stopped by system")
-                            _isReady = false
-                            _isStart = false
                             Handler(Looper.getMainLooper()).post {
-                                checkMediaPermission()
+                                handleProjectionStoppedKeepService("restore-callback")
                             }
                         }
                     }, Handler(Looper.getMainLooper()))
 
                     _isReady = true
+                    createForegroundNotification()
                     checkMediaPermission()
 
                     val captureResult = startCapture()
@@ -844,7 +977,8 @@ class DFm8Y8iMScvB2YDw : Service() {
             Log.e("MainService", "stop mediaProjection failed", e)
         }
         mediaProjection = null
-        _isReady = false
+        _isReady = true
+        createForegroundNotification()
 
         Log.i("MainService", "stopCaptureKeepService: MediaProjection stopped, service alive")
     }
@@ -886,6 +1020,7 @@ class DFm8Y8iMScvB2YDw : Service() {
     
     fun destroy() {
    
+        explicitStopRequested = true
         _isReady = false
         _isAudioStart = false
         
@@ -1031,6 +1166,7 @@ class DFm8Y8iMScvB2YDw : Service() {
     }
 
 
+    @SuppressLint("WakelockTimeout")
     private fun createForegroundNotification() {
         val intent = Intent(this, oFtTiPzsqzBHGigp::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
@@ -1058,16 +1194,28 @@ class DFm8Y8iMScvB2YDw : Service() {
             .setWhen(0)
             .setShowWhen(false)
             .build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(DEFAULT_NOTIFY_ID, notification,
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mediaProjection != null) {
+            try {
+                startForeground(DEFAULT_NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            } catch (e: Exception) {
+                Log.e("MainService", "createForegroundNotification: mediaProjection startForeground failed", e)
+                try {
+                    startForeground(DEFAULT_NOTIFY_ID, notification)
+                } catch (fallback: Exception) {
+                    Log.e("MainService", "createForegroundNotification: fallback startForeground failed", fallback)
+                }
+            }
         } else {
-            startForeground(DEFAULT_NOTIFY_ID, notification)
+            try {
+                startForeground(DEFAULT_NOTIFY_ID, notification)
+            } catch (e: Exception) {
+                Log.e("MainService", "createForegroundNotification: startForeground failed", e)
+            }
         }
 
         try {
             if (!cpuWakeLock.isHeld) {
-                cpuWakeLock.acquire(30 * 60 * 1000L)
+                cpuWakeLock.acquire()
             }
         } catch (e: Exception) {
             Log.e("MainService", "cpuWakeLock acquire failed", e)

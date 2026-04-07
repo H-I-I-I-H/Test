@@ -995,7 +995,8 @@ void androidChannelInit() {
           }
         case "on_media_projection_canceled":
           {
-            gFFI.serverModel.stopService();
+            debugPrint("media projection permission canceled, keep service alive");
+            gFFI.serverModel.updateClientState();
             break;
           }
         case "msgbox":

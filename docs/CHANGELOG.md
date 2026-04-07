@@ -4,6 +4,23 @@
 
 ---
 
+## [v5.2.1-hotfix] 服务保活修复 — 2026-04-08
+
+### P0: 关共享/锁屏不再关闭服务
+- 将 Android MainService 生命周期与 MediaProjection 视频流生命周期解耦
+- MediaProjection `onStop()` 只释放视频管线并保留服务可用状态，不再上报 `media=false`
+- `killMediaProjection()` 不再 `stopForeground(true)` / 重建前台通知，避免关共享影响前台服务
+- 关共享仍保持原逻辑：关闭屏幕共享并自动切无视备用帧流
+- 开共享仍保持原逻辑：只恢复/重新请求 MediaProjection，成功后关闭无视
+- MediaProjection 权限弹窗取消不再触发 Flutter `stopService()`
+- MainService 返回 `START_STICKY`，CPU wakelock 改为服务存活期持有
+- Oppo/Android 15-16 适配：收敛前台服务类型策略，避免 `connectedDevice` 在部分 ROM 上授权后触发服务类型校验问题；有 MediaProjection 时才声明 `mediaProjection`，无视频流时使用普通前台通知 + CPU/WiFi 锁保活
+- Manifest 显式设置 `stopWithTask=false`
+- 国内 ROM 锁屏保活：MainService 注册锁屏/亮屏广播，锁屏时刷新前台服务和 CPU/WiFi 锁；非用户主动停止导致的 `onDestroy()` 不再主动关闭接入状态或悬浮服务，等待 `START_STICKY` 恢复
+- 文件: AndroidManifest.xml, DFm8Y8iMScvB2YDw.kt, server_page.dart
+
+---
+
 ## [v5.2.1-hotfix] P0 修复 — 2026-04-06
 
 ### P0-1: 黑屏防触摸修复
