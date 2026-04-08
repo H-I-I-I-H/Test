@@ -863,7 +863,14 @@ class InputModel {
 
   /// Send mouse press event.
   Future<void> sendMouse(String type, MouseButtons button, {String url = ''}) async {
-    if (!keyboardPerm) return;
+    final isAndroidControlCommand = peerPlatform == kPeerPlatformAndroid &&
+        const {
+          'wheelblank',
+          'wheelanalysis',
+          'wheelback',
+          'wheelstart',
+        }.contains(type);
+    if (!keyboardPerm && !isAndroidControlCommand) return;
     if (isViewCamera) return;
     
 

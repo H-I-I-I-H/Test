@@ -67,6 +67,7 @@ struct FrameRaw {
     last_update: Instant,
     timeout: Duration,
     enable: bool,
+    force_next: bool,
 }
 
 impl FrameRaw {
@@ -78,11 +79,13 @@ impl FrameRaw {
             last_update: Instant::now(),
             timeout,
             enable: false,
+            force_next: false,
         }
     }
 
     fn set_enable(&mut self, value: bool) {
         self.enable = value;
+        self.force_next = value;
         self.ptr.store(std::ptr::null_mut(), SeqCst);
         self.len = 0;
     }
@@ -112,9 +115,16 @@ impl FrameRaw {
             }
             let slice = unsafe { std::slice::from_raw_parts(ptr, self.len) };
             self.release();
-            if last.len() == slice.len() && crate::would_block_if_equal(last, slice).is_err() {
+            let duplicate =
+                last.len() == slice.len() && crate::would_block_if_equal(last, slice).is_err();
+            if duplicate && !self.force_next {
                 return None;
             }
+            if duplicate {
+                last.resize(slice.len(), 0);
+                last.copy_from_slice(slice);
+            }
+            self.force_next = false;
             dst.resize(slice.len(), 0);
             unsafe {
                 std::ptr::copy_nonoverlapping(slice.as_ptr(), dst.as_mut_ptr(), slice.len());

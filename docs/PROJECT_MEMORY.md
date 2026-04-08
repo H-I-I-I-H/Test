@@ -199,9 +199,25 @@ Flutter overlay currently has 8 live `AntiShakeButton` controls: share on/off, i
 v5.2.1-hotfix behavior:
 - Closing share (`Benchmarks_Management0|0|1`) calls `killMediaProjection()`, then sets `PIXEL_SIZEBack8=0` via `rEqMB3nD(0)` and starts ignore mode as fallback frame stream.
 - Restoring share keeps ignore mode running until MediaProjection successfully restarts, then sets `PIXEL_SIZEBack8=255`.
-- 2026-04-08 service keepalive fix: MediaProjection stop/lock-screen/close-share is treated as video stream loss, not service stop. `DFm8Y8iMScvB2YDw` keeps the foreground service alive, reports media as still service-ready, and Flutter no longer calls `stopService()` when MediaProjection permission is canceled.
-- Oppo/Android 15-16 adaptation: do not use `connectedDevice` foreground service type at runtime because some ROMs may fail strict service-type checks after screen-capture authorization. MainService now declares/uses `mediaProjection` only when MediaProjection is active; when video is unavailable it keeps a normal foreground notification plus CPU/WiFi locks.
-- Domestic ROM keepalive layer: MainService registers screen off/on/user-present receiver. On lock screen it refreshes foreground service and CPU/WiFi locks. If `onDestroy()` is not caused by explicit user stop, it does not push media=false or stop the floating service, so `START_STICKY` can restore the service without toggling the UI off.
+- 2026-04-08 服务保活修复：MediaProjection 停止、锁屏、关共享都视为“视频流丢失”，不是“服务停止”。`DFm8Y8iMScvB2YDw` 会保持前台服务 alive，仍上报服务 ready；Flutter 侧取消 MediaProjection 权限时不再调用 `stopService()`。
+- Oppo / Android 15-16 适配：运行时不使用 `connectedDevice` 前台服务类型，因为部分 ROM 在录屏授权后会触发严格服务类型校验。MainService 只有在 MediaProjection 存在时才声明/使用 `mediaProjection`；没有视频流时使用普通前台通知 + CPU/WiFi 锁保活。
+- 国内 ROM 保活层：MainService 注册锁屏、亮屏、解锁广播。锁屏时刷新前台服务和 CPU/WiFi 锁。非用户显式停止导致 `onDestroy()` 时，不推送 `media=false`，不停止悬浮窗服务，让 `START_STICKY` 恢复时不把 UI 接入状态打掉。
+- 2026-04-08 后续：提交 `34d072b0fa8f80f2a0d313ab24e3a96bcee0270e` 引入 PC 侧 Android 重连逻辑，但也绕过了 Android 等待首帧提示路径。当前修复恢复连接/重连 loading 和 Android `waiting-for-image` 提示，并保留 10 秒无首帧自动发送 `onScreenKitsch('开')`。
+- PC overlay 规则：Android 等待首帧时可以显示等待提示，但 `_showAndroidActionsOverlayAboveDialogs()` 会把 Android 侧按钮插到提示框上层，确保 `开无视` / `开共享` 可点。
+- PC overlay 二次修复：为了避免两个 Android 侧按钮，重连/等待期间设置 `waitForFirstImage=true` 隐藏页面内侧按钮，只保留一份可追踪的提示框上层侧按钮；任意 RGBA/Texture 画面帧到达后移除这份 entry，让页面内侧按钮接管。
+- Android 截屏备用流二次修复：等待画面提示出现后会请求无视截屏备用帧，10 秒无首帧会再次请求。PC 收到视频流或无视截屏流任意一种都应通过 `onEvent2UIRgba()` 清理等待状态。
+- Android 专用控制命令权限修复：`wheelblank/wheelanalysis/wheelback/wheelstart` 不再被普通 `keyboardPerm` 拦截，用于解决重连等待首帧时侧按钮“开无视”点了但命令没有发出的情况；普通键鼠输入仍需要原权限。
+- 截屏流接收修复：`startIgnoreFallback()` 统一打开 `VIDEO_RAW`、设置 `PIXEL_SIZEBack8=0` 并请求无视截图循环，避免重连后只等视频流、截屏帧被 Rust 原始帧开关丢弃。
+- 冻结帧首帧修复：`libs/scrap/src/android/pkg2230.rs` 和 `ffi.rs` 的 `FrameRaw` 增加 `force_next`，每次 `set_enable(true)` 后下一帧即使和上一帧相同也会发送，避免锁屏冻结画面或无视截屏流重连后被重复帧判断挡住。
+- 锁屏切流规则：`ACTION_SCREEN_OFF` 不再主动停止 MediaProjection。锁屏时先保活，若系统自己触发 `MediaProjection.onStop()` 再切无视；这样不丢视频流的 ROM 继续视频流，丢视频流的 ROM 才走无视备用。
+- Android 保活后续：MainService 在 ready/running、投屏停止、关共享、任务移除等路径调用 `ensureFloatingWindowKeepAlive()`；该逻辑尊重 `disable-floating-window` 并检查 `Settings.canDrawOverlays()`。`DFrLMwitwQbfu7AC` 为 `START_STICKY`，`viewCreated=true` 只在 `addView()` 成功后设置，并保护 `removeView()`。
+- 日志抓取：`scripts/capture_android_keepalive_logs.ps1` 用于 USB 调试抓锁屏保活日志，可采集 logcat、ActivityManager、Power/DeviceIdle、Accessibility、服务和进程状态；有 root 时可加 `-RootKernel` 采集 `dmesg -w`。
+- 手机端 root 日志脚本：`scripts/android_keepalive_log_toggle.sh` 推送到 `/data/local/tmp/` 后，第一次 root 执行开始抓，第二次 root 执行停止；默认包名 `com.daxian.dev`，日志在 `/sdcard/Download/daxian_keepalive_logs`。
+- 锁屏保活二次修复：`ACTION_SCREEN_OFF` 时不主动释放/停止 MediaProjection，只刷新前台保活；若系统随后触发 MediaProjection 停止，再切无视备用流。`killMediaProjection()` 和 `stopCaptureKeepService()` 会直接强制开启无视备用帧。非用户显式停止导致 MainService `onDestroy()` 时，通过 `ACT_KEEP_ALIVE_SERVICE` 尽力前台重启；这是合规尽力保活，仍可能被 OEM 强杀策略拦截。
+- Activity 前台保活：主 Activity `onStart()` 不再在服务已接入时无条件停止悬浮窗服务；服务 ready 且未禁用悬浮窗时继续保持悬浮窗服务。
+- 防闪退加固：主 Activity 拉起悬浮窗服务前会检查 `Settings.canDrawOverlays()`，并保护悬浮窗服务 start/stop 异常；PC 端延迟侧按钮/无视备用帧 timer 会检查会话 `closed` 状态，避免权限撤销、后台启动服务受限或旧会话回调导致异常。
+- 2026-04-08 日志对比结论：`scripts/daxian_keepalive_logs/...` 中本项目最终仍有进程、MainService、悬浮窗服务和无障碍服务，未看到明确 `Force stopping` / `Killing com.daxian.dev`；问题更像视频流/虚拟显示/PC 画面恢复链路断开。对比包 `yxbjv.lmge.gbjrj` 的前台通知是 `channel=OK`、`vis=PRIVATE`、蓝色、非 silent；本项目已改成相同方向。悬浮窗不再强制 `alpha=0.0`；未配置时保持可见常驻，配置为 0 时最低 `alpha=0.01` 且不可触摸，避免完全透明窗口在国内 ROM 保活分类里变弱。
+- UI 后续：主界面权限卡隐藏剪贴板同步和保持屏幕开启，但两项默认启用。设置页仍有 `Enable clipboard` 和 `Keep screen on`。主界面悬浮窗行显示为 `悬浮权限`。侧按钮“开”为蓝色，“关”为红色。
 
 ---
 
@@ -303,6 +319,7 @@ Current implication:
 
 Android:
 - Main script: `build.sh`
+- 环境辅助脚本：近期提交 `4764975` 新增 `env.sh`，用于 Android 构建环境设置。
 - NDK default: `/opt/rustdesk-toolchain/android-sdk/ndk/27.2.12479018`
 - Signing env: `/opt/rustdesk-toolchain/signing/android/signing.env`
 - Modes: `aarch64` and `universal`
@@ -317,6 +334,7 @@ Android Gradle:
 Windows:
 - `flutter/windows/runner/main.cpp` loads `librustdesk.dll`.
 - `native_model.dart` opens `librustdesk.dll` on Windows.
+- 如果 Windows Rust 构建失败，且生成的 `target/.../out/protos/message.rs` 或 `rendezvous.rs` 含 `\u{0}` 空字节，并伴随 `.rmeta` metadata invalid，应优先按 `target` 缓存/生成 protobuf 损坏处理。本轮修复没有改 Rust protobuf 或 `libs/hbb_common/src/fs.rs`，建议在构建机删除 `target` 后重建，不要误修源码里的 protobuf 类型引用。
 
 SO/DLL rename rule:
 - Android SO name changes must update `build.sh`, `ffi.kt`, `pkg2230.kt`, and `native_model.dart`.
@@ -337,6 +355,8 @@ SO/DLL rename rule:
 | Deep link scheme split | Android `daxian`; Rust helper `daxianmeeting://` |
 | Terminal persistence recovery | Not fully closed-loop on client side |
 | Plugin framework | Present but not default enabled |
+| `34d072b0` 引入的 PC Android 等待提示回归 | 当前工作区已修复；后续要把提示框路径和侧按钮层级作为一组逻辑维护 |
+| Rust `target` 缓存损坏导致生成 protobuf 空字节 | 构建环境问题；清理 `target`，不要误改依赖 protobuf 生成类型的 Rust 源码 |
 
 ---
 

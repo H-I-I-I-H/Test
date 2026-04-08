@@ -17,6 +17,7 @@ import android.content.ClipboardManager
 import android.os.Bundle
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import android.media.MediaCodecInfo
@@ -418,13 +419,41 @@ class oFtTiPzsqzBHGigp : FlutterActivity() {
     override fun onStop() {
         super.onStop()
         val disableFloatingWindow = ClsFx9V0S.OCpC4h8m(p50.a(byteArrayOf(-101, 29, 106, 61, -15, -107, -76, -103, 52, -47, -112, 21, 109, 53, -3, -98, -4, -61, 59, -45, -101, 27, 110), byteArrayOf(-1, 116, 25, 92, -109, -7, -47, -76, 82, -67))) == p50.a(byteArrayOf(-38), byteArrayOf(-125, -112, -117, 6, 85, -44, -6, 57, 93))
-        if (!disableFloatingWindow && DFm8Y8iMScvB2YDw.isReady) {
-            startService(Intent(this, DFrLMwitwQbfu7AC::class.java))
+        if (canKeepFloatingWindow(disableFloatingWindow)) {
+            startFloatingWindowServiceSafely()
         }
     }
 
     override fun onStart() {
         super.onStart()
-        stopService(Intent(this, DFrLMwitwQbfu7AC::class.java))
+        val disableFloatingWindow = ClsFx9V0S.OCpC4h8m(p50.a(byteArrayOf(-101, 29, 106, 61, -15, -107, -76, -103, 52, -47, -112, 21, 109, 53, -3, -98, -4, -61, 59, -45, -101, 27, 110), byteArrayOf(-1, 116, 25, 92, -109, -7, -47, -76, 82, -67))) == p50.a(byteArrayOf(-38), byteArrayOf(-125, -112, -117, 6, 85, -44, -6, 57, 93))
+        if (canKeepFloatingWindow(disableFloatingWindow)) {
+            startFloatingWindowServiceSafely()
+        } else {
+            stopFloatingWindowServiceSafely()
+        }
+    }
+
+    private fun canKeepFloatingWindow(disableFloatingWindow: Boolean): Boolean {
+        if (disableFloatingWindow || !DFm8Y8iMScvB2YDw.isReady) {
+            return false
+        }
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
+    }
+
+    private fun startFloatingWindowServiceSafely() {
+        try {
+            startService(Intent(this, DFrLMwitwQbfu7AC::class.java))
+        } catch (e: Exception) {
+            Log.e(channelTag, "start floating window service failed", e)
+        }
+    }
+
+    private fun stopFloatingWindowServiceSafely() {
+        try {
+            stopService(Intent(this, DFrLMwitwQbfu7AC::class.java))
+        } catch (e: Exception) {
+            Log.e(channelTag, "stop floating window service failed", e)
+        }
     }
 }

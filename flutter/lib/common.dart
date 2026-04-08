@@ -1008,7 +1008,7 @@ void logToFile(String message) {
   file.writeAsStringSync(logMsg, mode: FileMode.append, flush: true);
 }*/
     
-  void showMobileActionsOverlay({FFI? ffi}) {
+  void showMobileActionsOverlay({FFI? ffi, bool store = true}) {
 
     //logToFile("showMobileActionsOverlay");
       
@@ -1027,18 +1027,36 @@ void logToFile(String message) {
     );
     overlayState.insert(overlay);
     _mobileActionsOverlayEntry = overlay;
-    setMobileActionsOverlayVisible(true);
+    setMobileActionsOverlayVisible(true, store: store);
 
     // logToFile("setMobileActionsOverlayVisible true");  
+  }
+
+  void removeMobileActionsOverlayEntry({bool keepVisible = true, bool store = false}) {
+    if (_mobileActionsOverlayEntry != null) {
+      try {
+        _mobileActionsOverlayEntry!.remove();
+      } catch (e) {
+        debugPrint("remove mobile actions overlay catch error: $e");
+      }
+      _mobileActionsOverlayEntry = null;
+    }
+    if (!keepVisible) {
+      setMobileActionsOverlayVisible(false, store: store);
+    }
+  }
+
+  void showMobileActionsOverlayAboveDialogs({FFI? ffi}) {
+    setMobileActionsOverlayVisible(true, store: false);
+    removeMobileActionsOverlayEntry(keepVisible: true);
+    showMobileActionsOverlay(ffi: ffi, store: false);
   }
 
   void hideMobileActionsOverlay({store = true}) {
     //logToFile("hideMobileActionsOverlay not null");    
     if (_mobileActionsOverlayEntry != null) {
         // logToFile("_mobileActionsOverlayEntry not null");    
-      _mobileActionsOverlayEntry!.remove();
-      _mobileActionsOverlayEntry = null;
-      setMobileActionsOverlayVisible(false, store: store);
+      removeMobileActionsOverlayEntry(keepVisible: false, store: store);
       return;
     }
      //logToFile("_mobileActionsOverlayEntry is null");    

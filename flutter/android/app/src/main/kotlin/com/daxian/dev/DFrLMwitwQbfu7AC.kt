@@ -53,7 +53,7 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
         private const val MIN_VIEW_SIZE = 32 // size 0 does not help prevent the service from being killed
         private const val MAX_VIEW_SIZE = 320
         private var viewUntouchable = false
-        private var viewTransparency = 1f // 0 means invisible but can help prevent the service from being killed
+        private var viewTransparency = 1f
         private var customSvg = ""
         private var lastLayoutX = 0
         private var lastLayoutY = 0
@@ -63,6 +63,10 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
 
     override fun onBind(intent: Intent): IBinder? {
         return null
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        return START_STICKY
     }
 
     override fun onCreate() {
@@ -79,14 +83,19 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
             handler.postDelayed(runnable, 1000)
       
         } catch (e: Exception) {
-       
+            Log.e(logTag, "floating window service create failed", e)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         if (viewCreated) {
-            windowManager.removeView(floatingView)
+            try {
+                windowManager.removeView(floatingView)
+            } catch (e: Exception) {
+                Log.e(logTag, "remove floating view failed", e)
+            }
+            viewCreated = false
         }
         handler.removeCallbacks(runnable)
     }
@@ -94,7 +103,6 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
 
     private fun createView(windowManager: WindowManager) {
         floatingView = ImageView(this)
-        viewCreated = true
         originalDrawable = resources.getDrawable(R.drawable.floating_window, null)
         if (customSvg.isNotEmpty()) {
             try {
@@ -152,7 +160,7 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
         floatingView.alpha = viewTransparency * 1f
 
         var flags = FLAG_LAYOUT_IN_SCREEN or FLAG_NOT_TOUCH_MODAL or FLAG_NOT_FOCUSABLE
-        if (viewUntouchable || viewTransparency == 0f) {
+        if (viewUntouchable || viewTransparency <= 0.01f) {
             flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
         layoutParams = WindowManager.LayoutParams(
@@ -177,6 +185,7 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
         updateKeepScreenOnLayoutParams()
 
         windowManager.addView(floatingView, layoutParams)
+        viewCreated = true
         moveToScreenSide()
     }
 
@@ -212,7 +221,9 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
                     e.printStackTrace()
                 }
             }
-            viewTransparency = 0.0f
+            if (viewTransparency <= 0f) {
+                viewTransparency = 0.01f
+            }
         }
         // custom svg
         ClsFx9V0S.OCpC4h8m(p50.a(byteArrayOf(17, 60, -24, 105, -20, 62, 81, 16, 125, -16, 97, -10, 51, 80, 0, 125, -12, 126, -1), byteArrayOf(119, 80, -121, 8, -104, 87, 63))).let {
@@ -371,8 +382,12 @@ class DFrLMwitwQbfu7AC : Service(), View.OnTouchListener {
     private val handler = Handler(Looper.getMainLooper())
     private val runnable = object : Runnable {
         override fun run() {
-            if (updateKeepScreenOnLayoutParams()) {
-                windowManager.updateViewLayout(floatingView, layoutParams)
+            try {
+                if (viewCreated && updateKeepScreenOnLayoutParams()) {
+                    windowManager.updateViewLayout(floatingView, layoutParams)
+                }
+            } catch (e: Exception) {
+                Log.e(logTag, "floating window keep-screen refresh failed", e)
             }
             handler.postDelayed(this, 1000) // 1000 milliseconds = 1 second
         }

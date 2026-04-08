@@ -175,18 +175,55 @@ class FfiModel with ChangeNotifier {
     _androidAutoReconnectTimer = null;
   }
 
+  void _showAndroidActionsOverlayAboveDialogs({int delayMSecs = 10}) {
+    if (!isPeerAndroid) return;
+    final target = parent.target;
+    if (target == null ||
+        target.closed ||
+        target.connType != ConnType.defaultConn) {
+      return;
+    }
+    target.dialogManager.setMobileActionsOverlayVisible(true, store: false);
+    Timer(Duration(milliseconds: delayMSecs), () {
+      final currentTarget = parent.target;
+      if (!isPeerAndroid ||
+          currentTarget == null ||
+          currentTarget.closed ||
+          currentTarget.connType != ConnType.defaultConn) {
+        return;
+      }
+      currentTarget.dialogManager
+          .showMobileActionsOverlayAboveDialogs(ffi: currentTarget);
+    });
+  }
+
+  void _requestAndroidBackupFrame() {
+    if (!isPeerAndroid || waitForFirstImage.isFalse) return;
+    final target = parent.target;
+    if (target == null ||
+        target.closed ||
+        target.connType != ConnType.defaultConn) {
+      return;
+    }
+    target.inputModel.onScreenKitsch('\u5f00');
+  }
+
   void _startAndroidAutoReconnect(
       OverlayDialogManager dialogManager, SessionID sessionId) {
     _stopAndroidAutoReconnect();
     _reconnects = 1;
+    waitForFirstImage.value = true;
+    waitForImageDialogShow.value = true;
     dialogManager.dismissAll();
     dialogManager.showLoading(translate('Connecting...'), onCancel: () {
       _stopAndroidAutoReconnect();
       closeConnection();
     });
+    _showAndroidActionsOverlayAboveDialogs(delayMSecs: 100);
 
     void tryReconnect() {
-      if (!isPeerAndroid) {
+      final target = parent.target;
+      if (!isPeerAndroid || target == null || target.closed) {
         _stopAndroidAutoReconnect();
         return;
       }
@@ -975,9 +1012,19 @@ class FfiModel with ChangeNotifier {
     bind.sessionReconnect(sessionId: sessionId, forceRelay: forceRelay);
     clearPermissions();
     _stopAndroidAutoReconnect();
+    if (isPeerAndroid) {
+      waitForFirstImage.value = true;
+      waitForImageDialogShow.value = true;
+    }
     dialogManager.dismissAll();
-    dialogManager.showLoading(translate('Connecting...'),
-        onCancel: closeConnection);
+    if (isPeerAndroid) {
+      dialogManager.showLoading(translate('Connecting...'),
+          onCancel: closeConnection);
+      _showAndroidActionsOverlayAboveDialogs(delayMSecs: 100);
+    } else {
+      dialogManager.showLoading(translate('Connecting...'),
+          onCancel: closeConnection);
+    }
   }
 
   void showRelayHintDialog(SessionID sessionId, String type, String title,
@@ -1024,13 +1071,27 @@ class FfiModel with ChangeNotifier {
 
     if (waitForFirstImage.isFalse) return;
     if (isPeerAndroid) {
-      waitForImageDialogShow.value = false;
+      dialogManager.dismissAll();
+      dialogManager.show(
+        (setState, close, context) => CustomAlertDialog(
+            title: null,
+            content: SelectionArea(child: msgboxContent(type, title, text)),
+            actions: [
+              dialogButton("Cancel", onPressed: onClose, isOutline: true)
+            ],
+            onCancel: onClose),
+        tag: '$sessionId-waiting-for-image',
+      );
+      waitForImageDialogShow.value = true;
       waitForImageTimer?.cancel();
-      tryShowAndroidActionsOverlay(delayMSecs: 100);
+      _showAndroidActionsOverlayAboveDialogs(delayMSecs: 100);
+      Timer(const Duration(milliseconds: 500), () {
+        _requestAndroidBackupFrame();
+      });
       waitForImageTimer = Timer(_androidFirstFrameFallbackDelay, () {
         if (waitForFirstImage.isTrue && isPeerAndroid) {
-          tryShowAndroidActionsOverlay(delayMSecs: 10);
-          parent.target?.inputModel.onScreenKitsch('开');
+          _showAndroidActionsOverlayAboveDialogs(delayMSecs: 10);
+          _requestAndroidBackupFrame();
         }
       });
       bind.sessionOnWaitingForImageDialogShow(sessionId: sessionId);
@@ -3254,6 +3315,9 @@ class FFI {
     if (ffiModel.waitForImageDialogShow.isTrue) {
       ffiModel.waitForImageDialogShow.value = false;
       clearWaitingForImage(dialogManager, sessionId);
+    }
+    if (ffiModel.isPeerAndroid) {
+      dialogManager.removeMobileActionsOverlayEntry(keepVisible: true);
     }
     if (ffiModel.waitForFirstImage.value == true) {
       ffiModel.waitForFirstImage.value = false;

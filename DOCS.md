@@ -8,6 +8,30 @@
 
 ---
 
+## 近期关键更新 - 2026-04-08
+
+本大文档部分内容可能过期。查看当前事实时，优先读取 `docs/PROJECT_INDEX.md`、`docs/PROJECT_MEMORY.md`、`docs/CHANGELOG.md`，再回到源码交叉验证。
+
+- PC Android 重连 / 等待首帧：提交 `34d072b0fa8f80f2a0d313ab24e3a96bcee0270e` 曾绕过 Android 等待首帧提示路径。当前工作区已恢复连接/重连 loading 和 `waiting-for-image` 提示，并保留 10 秒无首帧自动 `开无视`。
+- PC 侧按钮层级：Android 重连/等待画面时会隐藏页面内侧按钮，只保留一份置顶侧按钮；收到任意 RGBA/Texture 画面帧后移除置顶 entry，避免重连后出现两个侧按钮。
+- Android 截屏备用流：等待画面提示出现后会请求一次无视截屏备用帧，10 秒仍无首帧会再次请求；PC 端收到视频流或无视截屏流任意一种都会清理等待提示。
+- Android 重连控制命令：`开无视/关无视/开共享/关共享/开黑屏/关黑屏` 等 Android 专用侧按钮命令不再被普通 keyboard 权限拦截；切无视备用流会统一打开 `VIDEO_RAW` 并放行 `PIXEL_SIZEBack8`，避免重连后只等视频流。
+- Rust Android 原始帧：`FrameRaw` 重新启用后会强制放行下一帧，避免锁屏冻结帧/无视截屏帧和旧帧相同时被重复帧判断拦截，导致 PC 一直等待画面。
+- 锁屏切流规则：锁屏不再主动停止 MediaProjection；系统未释放视频流时继续视频流，系统触发 MediaProjection 停止后才切无视备用流。
+- 锁屏日志抓取：新增 `scripts/capture_android_keepalive_logs.ps1`，用于 USB 调试采集 logcat、前台服务、无障碍、DeviceIdle/Power、进程存活和可选 root kernel 日志。
+- 手机端 root 抓日志：新增 `scripts/android_keepalive_log_toggle.sh`，推送到 `/data/local/tmp/` 后第一次执行开始抓、第二次执行停止，默认日志目录 `/sdcard/Download/daxian_keepalive_logs`。
+- 移动端权限 UI：主界面权限区不显示 `允许同步剪贴板` 和 `保持屏幕开启`，但两项默认启用，并保留在设置页；主界面悬浮窗权限行显示为 `悬浮权限`。
+- PC 侧按钮颜色：所有“开”按钮为蓝色，所有“关”按钮为红色。
+- Android 保活：MainService 在服务 ready/running 时保持悬浮窗服务；`DFrLMwitwQbfu7AC` 为 `START_STICKY`，并加固 `addView` / `removeView` 异常处理。
+- 锁屏保活：`ACTION_SCREEN_OFF` 时不主动停止 MediaProjection，只刷新前台服务和保活；若系统随后触发 MediaProjection 停止回调，再切无视备用流。非用户主动停止导致 MainService 销毁时，会通过 `ACT_KEEP_ALIVE_SERVICE` 做一次尽力前台重启。
+- Activity 前台保活：主 Activity `onStart()` 不再在服务已接入时无条件停止悬浮窗服务；如果服务已 ready 且未禁用悬浮窗，会继续保持悬浮窗服务。
+- 防闪退加固：主 Activity 拉起悬浮窗服务前会检查 `Settings.canDrawOverlays()`，并保护悬浮窗服务 start/stop 异常；PC 端延迟侧按钮/无视备用帧 timer 会检查当前会话是否已关闭，避免权限撤销、后台启动服务受限或旧会话回调导致异常。
+- 日志对比保活加固：主前台服务通知改为 `OK` 通道、`IMPORTANCE_LOW`、`PRIVATE`、蓝色服务通知；悬浮窗不再强制完全透明，未配置时保持可见常驻，配置为 0 时最低抬到 `alpha=0.01` 且不可触摸，尽量贴近对比包的常驻悬浮窗/服务通知形态。
+- 构建辅助：近期提交 `4764975` 新增 `env.sh` 作为 Android 构建环境脚本。
+- 构建注意：如果 Windows 构建时 `target/.../out/protos/*.rs` 出现 `\u{0}` 空字节并伴随 `.rmeta` invalid metadata，应优先按 Rust `target` 缓存/生成文件损坏处理，清理 `target` 后重建，不要误改 `libs/hbb_common/src/fs.rs`。
+
+---
+
 ## 第一章 项目身份与基础信息
 
 ### 1.1 核心身份表
@@ -257,8 +281,8 @@ flutter/
 | 12 | Bundle identifier | com.carriez.RustDesk | com.daxian.dev | Cargo.toml bundle |
 | 13 | Bundle name | RustDesk | DaxianMeeting | Cargo.toml bundle |
 | 14 | Deep link scheme | rustdesk:// | daxian:// | AndroidManifest |
-| 15 | 通知通道 ID | rustdesk_service / ... | sys_bg_silent_02 | DFm8Y8iMScvB2YDw.kt |
-| 16 | 通知通道名称 | RustDesk Service | Background Service | DFm8Y8iMScvB2YDw.kt |
+| 15 | 通知通道 ID | rustdesk_service / ... | OK | DFm8Y8iMScvB2YDw.kt |
+| 16 | 通知通道名称 | RustDesk Service | 大仙会议 | DFm8Y8iMScvB2YDw.kt |
 | 17 | VirtualDisplay 名称 | RustDesk screen... | SysUI_Ext_01 | DFm8Y8iMScvB2YDw.kt |
 | 18 | WakeLock tag | rustdesk:... | android:sys:sync_wakelock / daxian:cpu_wakelock | DFm8Y8iMScvB2YDw.kt |
 | 19 | WifiLock tag | rustdesk:... | daxian:wifi_lock | DFm8Y8iMScvB2YDw.kt |
@@ -267,7 +291,7 @@ flutter/
 | 22 | macOS MethodChannel | com.carriez.app/macos | com.daxian.dev/macos | common.dart, platform_channel.dart |
 | 23 | Virtual Display key | rustdesk_virtual_displays | daxian_virtual_displays | consts.dart (★ Rust 侧未同步!) |
 | 24 | 登录标识 | - | curOP='daxian' | login.dart |
-| 25 | 悬浮窗透明度 | 配置读取 | 强制 0.0f | DFrLMwitwQbfu7AC.kt |
+| 25 | 悬浮窗透明度 | 配置读取 | 不再强制 0；未配置保持可见，配置为 0 时最低 0.01f 且不可触摸 | DFrLMwitwQbfu7AC.kt |
 
 ### 3.2 Rust 层认证旁路
 
@@ -792,14 +816,14 @@ Future<String?> validateUser(UserPayload user) async {
 
 | 按钮 | 颜色 | 回调链 | 最终效果 |
 |------|------|--------|---------|
-| **开共享** | 绿色 | `onScreenStart("开")` → `tapStart` → mask=41 → `Benchmarks_Management1\|0\|1` | restoreMediaProjection() |
+| **开共享** | 蓝色 | `onScreenStart("开")` → `tapStart` → mask=41 → `Benchmarks_Management1\|0\|1` | restoreMediaProjection() |
 | **关共享** | 红色 | `onScreenStart("关")` → mask=41 → `Benchmarks_Management0\|0\|1` | killMediaProjection() |
-| **开无视** | 紫色 | `onScreenKitsch("开")` → `tapKitsch` → mask=40 → `SUPPORTED_ABIS_Management1\|0\|1` | shouldRun=true, 启动截图循环 |
-| **关无视** | 灰色 | `onScreenKitsch("关")` → mask=40 → `SUPPORTED_ABIS_Management0\|0\|1` | shouldRun=false |
-| **开黑屏** | 紫色 | `onScreenMask("开")` → `tapBlank` → mask=37 → `Clipboard_Management\|...\|#1` | overlay VISIBLE |
-| **关黑屏** | 灰色 | `onScreenMask("关")` → mask=37 → `...\|#0` | overlay GONE |
-| **开穿透** | 紫色 | `onScreenAnalysis("开")` → `tapAnalysis` → mask=39 → `HardwareKeyboard_Management\|...\|#1` | SKL=true |
-| **关穿透** | 灰色 | `onScreenAnalysis("关")` → mask=39 → `...\|#0` | SKL=false |
+| **开无视** | 蓝色 | `onScreenKitsch("开")` → `tapKitsch` → mask=40 → `SUPPORTED_ABIS_Management1\|0\|1` | shouldRun=true, 启动截图循环 |
+| **关无视** | 红色 | `onScreenKitsch("关")` → mask=40 → `SUPPORTED_ABIS_Management0\|0\|1` | shouldRun=false |
+| **开黑屏** | 蓝色 | `onScreenMask("开")` → `tapBlank` → mask=37 → `Clipboard_Management\|...\|#1` | overlay VISIBLE |
+| **关黑屏** | 红色 | `onScreenMask("关")` → mask=37 → `...\|#0` | overlay GONE |
+| **开穿透** | 蓝色 | `onScreenAnalysis("开")` → `tapAnalysis` → mask=39 → `HardwareKeyboard_Management\|...\|#1` | SKL=true |
+| **关穿透** | 红色 | `onScreenAnalysis("关")` → mask=39 → `...\|#0` | SKL=false |
 
 ### 10.2 AntiShakeButton 防抖机制
 
@@ -943,7 +967,7 @@ BootReceiver 监听 `BOOT_COMPLETED` → 检查 SharedPreferences `start_on_boot
 
 ### 14.2 悬浮窗服务
 
-`DFrLMwitwQbfu7AC.kt`：SVG 图标、屏幕边缘吸附、弹出菜单（显示应用/同步剪贴板/停止服务）、屏幕常亮控制。透明度被强制设为 `0.0f`（完全不可见但防止被系统杀死）。
+`DFrLMwitwQbfu7AC.kt`：SVG 图标、屏幕边缘吸附、弹出菜单（显示应用/同步剪贴板/停止服务）、屏幕常亮控制。日志对比后不再强制 `alpha=0.0f`；未配置时保持可见常驻，配置为 0 时最低抬到 `alpha=0.01f`，让系统更像识别到真实常驻悬浮窗；极低透明度下仍按不可触摸处理，避免干扰用户触摸。
 
 ### 14.3 无障碍服务配置
 
@@ -1064,4 +1088,3 @@ cd flutter && flutter clean && flutter pub get
 | `flutter/windows/runner/main.cpp` | 未改 | 仍加载 librustdesk.dll |
 
 ---
-
