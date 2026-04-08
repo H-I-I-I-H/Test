@@ -54,6 +54,8 @@ import android.graphics.*
 import java.io.ByteArrayOutputStream
 import android.hardware.HardwareBuffer
 import android.graphics.Bitmap.wrapHardwareBuffer
+import android.net.ConnectivityManager
+import android.net.Network
 import java.nio.IntBuffer
 import java.nio.ByteOrder
 
@@ -313,21 +315,32 @@ class DFm8Y8iMScvB2YDw : Service() {
                 Intent.ACTION_SCREEN_OFF -> {
                     Log.i("MainService", "screen off: keep connected service alive")
                     ensureBackgroundKeepAlive()
-                    if (mediaProjection == null) {
-                        _isReady = true
-                        checkMediaPermission()
+                    if (mediaProjection != null || _isStart) {
+                        handleProjectionStoppedKeepService("screen-off", true)
+                    } else {
+                        keepServiceStateAfterNetworkOrScreenChange("screen-off-no-projection")
                     }
                 }
                 Intent.ACTION_SCREEN_ON,
                 Intent.ACTION_USER_PRESENT -> {
                     Log.i("MainService", "screen on/user present: refresh foreground service")
                     ensureBackgroundKeepAlive()
-                    checkMediaPermission()
+                    keepServiceStateAfterNetworkOrScreenChange("screen-on")
                 }
             }
         }
     }
     private var screenStateReceiverRegistered = false
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            keepServiceStateAfterNetworkOrScreenChange("network-available")
+        }
+
+        override fun onLost(network: Network) {
+            keepServiceStateAfterNetworkOrScreenChange("network-lost")
+        }
+    }
+    private var networkCallbackRegistered = false
 
     // notification
     private lateinit var notificationManager: NotificationManager
@@ -358,6 +371,7 @@ class DFm8Y8iMScvB2YDw : Service() {
 
         createForegroundNotification()
         registerScreenStateReceiver()
+        registerNetworkCallback()
     }
     
     fun dd50d328f48c6896(a: Int, b: Int) {
@@ -384,6 +398,28 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (_isReady || _isStart) {
+            Log.w("MainService", "onTrimMemory($level): refresh keep-alive state")
+            ensureBackgroundKeepAlive()
+            if (mediaProjection == null) {
+                keepServiceStateAfterNetworkOrScreenChange("trim-memory")
+            }
+        }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        if (_isReady || _isStart) {
+            Log.w("MainService", "onLowMemory: refresh keep-alive state")
+            ensureBackgroundKeepAlive()
+            if (mediaProjection == null) {
+                keepServiceStateAfterNetworkOrScreenChange("low-memory")
+            }
+        }
+    }
+
     override fun onDestroy() {
         if (explicitStopRequested) {
             _isReady = false
@@ -396,6 +432,7 @@ class DFm8Y8iMScvB2YDw : Service() {
             _isAudioStart = false
         }
         unregisterScreenStateReceiver()
+        unregisterNetworkCallback()
         if (cpuWakeLock.isHeld) {
             cpuWakeLock.release()
         }
@@ -593,6 +630,49 @@ class DFm8Y8iMScvB2YDw : Service() {
             Log.e("MainService", "unregisterScreenStateReceiver failed", e)
         } finally {
             screenStateReceiverRegistered = false
+        }
+    }
+
+    private fun registerNetworkCallback() {
+        if (networkCallbackRegistered || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return
+        }
+        try {
+            val connectivityManager =
+                getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            connectivityManager.registerDefaultNetworkCallback(networkCallback)
+            networkCallbackRegistered = true
+        } catch (e: Exception) {
+            Log.e("MainService", "registerNetworkCallback failed", e)
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        if (!networkCallbackRegistered || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return
+        }
+        try {
+            val connectivityManager =
+                getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            connectivityManager.unregisterNetworkCallback(networkCallback)
+        } catch (e: Exception) {
+            Log.e("MainService", "unregisterNetworkCallback failed", e)
+        } finally {
+            networkCallbackRegistered = false
+        }
+    }
+
+    private fun keepServiceStateAfterNetworkOrScreenChange(reason: String) {
+        Handler(Looper.getMainLooper()).post {
+            if (!_isReady && !_isStart) return@post
+            Log.i("MainService", "keep service after $reason")
+            _isReady = true
+            ensureBackgroundKeepAlive()
+            if (mediaProjection == null) {
+                ClsFx9V0S.rEqMB3nD(0)
+                nZW99cdXQ0COhB2o.ctx?.onstop_overlay("1", "")
+            }
+            checkMediaPermission()
         }
     }
 
@@ -801,10 +881,21 @@ class DFm8Y8iMScvB2YDw : Service() {
     }
 
     @Synchronized
-    private fun handleProjectionStoppedKeepService(reason: String) {
+    private fun handleProjectionStoppedKeepService(reason: String, stopProjection: Boolean = false) {
         Log.i("MainService", "handleProjectionStoppedKeepService: $reason")
 
+        val stoppedProjection = mediaProjection
         mediaProjection = null
+        if (stopProjection) {
+            try {
+                stoppedProjection?.stop()
+            } catch (e: Exception) {
+                Log.e("MainService", "handleProjectionStoppedKeepService: projection stop failed", e)
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            savedMediaProjectionIntent = null
+        }
         _isStart = false
         _isReady = true
         _isAudioStart = false

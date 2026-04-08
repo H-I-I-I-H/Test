@@ -115,6 +115,9 @@ class FfiModel with ChangeNotifier {
   bool? _direct;
   bool _touchMode = false;
   Timer? _timer;
+  Timer? _androidAutoReconnectTimer;
+  static const Duration _androidAutoReconnectInterval = Duration(seconds: 5);
+  static const Duration _androidFirstFrameFallbackDelay = Duration(seconds: 10);
   var _reconnects = 1;
   bool _viewOnly = false;
   WeakReference<FFI> parent;
@@ -153,6 +156,48 @@ class FfiModel with ChangeNotifier {
 
   bool get isPeerAndroid => _pi.platform == kPeerPlatformAndroid;
   bool get isPeerMobile => isPeerAndroid;
+
+  bool _isRecoverableAndroidConnectionError(
+      String type, String title, String text) {
+    if (!isPeerAndroid || type != 'error' || title != 'Connection Error') {
+      return false;
+    }
+    final lower = text.toLowerCase();
+    return !lower.contains('manually') &&
+        !lower.contains('not allowed') &&
+        !lower.contains('handshake') &&
+        !lower.contains('mismatch') &&
+        !lower.contains('exist');
+  }
+
+  void _stopAndroidAutoReconnect() {
+    _androidAutoReconnectTimer?.cancel();
+    _androidAutoReconnectTimer = null;
+  }
+
+  void _startAndroidAutoReconnect(
+      OverlayDialogManager dialogManager, SessionID sessionId) {
+    _stopAndroidAutoReconnect();
+    _reconnects = 1;
+    dialogManager.dismissAll();
+    dialogManager.showLoading(translate('Connecting...'), onCancel: () {
+      _stopAndroidAutoReconnect();
+      closeConnection();
+    });
+
+    void tryReconnect() {
+      if (!isPeerAndroid) {
+        _stopAndroidAutoReconnect();
+        return;
+      }
+      bind.sessionReconnect(sessionId: sessionId, forceRelay: false);
+      clearPermissions();
+    }
+
+    tryReconnect();
+    _androidAutoReconnectTimer =
+        Timer.periodic(_androidAutoReconnectInterval, (_) => tryReconnect());
+  }
 
   bool get viewOnly => _viewOnly;
 
@@ -222,6 +267,7 @@ class FfiModel with ChangeNotifier {
     _inputBlocked = false;
     _timer?.cancel();
     _timer = null;
+    _stopAndroidAutoReconnect();
     clearPermissions();
     waitForImageTimer?.cancel();
     timerScreenshot?.cancel();
@@ -904,6 +950,11 @@ class FfiModel with ChangeNotifier {
   showMsgBox(SessionID sessionId, String type, String title, String text,
       String link, bool hasRetry, OverlayDialogManager dialogManager,
       {bool? hasCancel}) {
+    if (_isRecoverableAndroidConnectionError(type, title, text)) {
+      _timer?.cancel();
+      _startAndroidAutoReconnect(dialogManager, sessionId);
+      return;
+    }
     msgBox(sessionId, type, title, text, link, dialogManager,
         hasCancel: hasCancel,
         reconnect: hasRetry ? reconnect : null,
@@ -923,6 +974,7 @@ class FfiModel with ChangeNotifier {
       bool forceRelay) {
     bind.sessionReconnect(sessionId: sessionId, forceRelay: forceRelay);
     clearPermissions();
+    _stopAndroidAutoReconnect();
     dialogManager.dismissAll();
     dialogManager.showLoading(translate('Connecting...'),
         onCancel: closeConnection);
@@ -971,6 +1023,19 @@ class FfiModel with ChangeNotifier {
     }
 
     if (waitForFirstImage.isFalse) return;
+    if (isPeerAndroid) {
+      waitForImageDialogShow.value = false;
+      waitForImageTimer?.cancel();
+      tryShowAndroidActionsOverlay(delayMSecs: 100);
+      waitForImageTimer = Timer(_androidFirstFrameFallbackDelay, () {
+        if (waitForFirstImage.isTrue && isPeerAndroid) {
+          tryShowAndroidActionsOverlay(delayMSecs: 10);
+          parent.target?.inputModel.onScreenKitsch('开');
+        }
+      });
+      bind.sessionOnWaitingForImageDialogShow(sessionId: sessionId);
+      return;
+    }
     dialogManager.show(
       (setState, close, context) => CustomAlertDialog(
           title: null,
@@ -1050,6 +1115,7 @@ class FfiModel with ChangeNotifier {
     // Recent peer is updated by handle_peer_info(ui_session_interface.rs) --> handle_peer_info(client.rs) --> save_config(client.rs)
     bind.mainLoadRecentPeers();
 
+    _stopAndroidAutoReconnect();
     parent.target?.dialogManager.dismissAll();
     _pi.version = evt['version'];
     _pi.isSupportMultiUiSession =
@@ -3183,9 +3249,10 @@ class FFI {
   }
 
   void onEvent2UIRgba() async {
+    ffiModel.waitForImageTimer?.cancel();
+    ffiModel.waitForImageTimer = null;
     if (ffiModel.waitForImageDialogShow.isTrue) {
       ffiModel.waitForImageDialogShow.value = false;
-      ffiModel.waitForImageTimer?.cancel();
       clearWaitingForImage(dialogManager, sessionId);
     }
     if (ffiModel.waitForFirstImage.value == true) {

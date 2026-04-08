@@ -328,7 +328,8 @@ class _RemotePageState extends State<RemotePage>
           Stack(
             children: [
               _ffi.ffiModel.pi.isSet.isTrue &&
-                      _ffi.ffiModel.waitForFirstImage.isTrue
+                      _ffi.ffiModel.waitForFirstImage.isTrue &&
+                      !_ffi.ffiModel.isPeerAndroid
                   ?  /*Obx(() => Offstage(
                       offstage:
                           _ffi.dialogManager.mobileActionsOverlayVisible.isFalse,
