@@ -589,7 +589,6 @@ class PermissionChecker extends StatefulWidget {
 class _PermissionCheckerState extends State<PermissionChecker> {
   var _enableStartOnBoot = false;
   var _floatingWindowDisabled = false;
-  var _keepScreenOn = "during-controlled";
 
   @override
   void initState() {
@@ -608,12 +607,9 @@ class _PermissionCheckerState extends State<PermissionChecker> {
     _floatingWindowDisabled = floatingWindowSetting == "Y" ||
         !await AndroidPermissionManager.check(kSystemAlertWindow);
 
-    var keepScreenOnSetting = bind.mainGetLocalOption(key: kOptionKeepScreenOn);
-    if (keepScreenOnSetting.isEmpty) {
-      bind.mainSetLocalOption(key: kOptionKeepScreenOn, value: 'service-on');
-      keepScreenOnSetting = 'service-on';
-    }
-    _keepScreenOn = keepScreenOnSetting;
+    bind.mainSetOption(key: kOptionEnableClipboard, value: defaultOptionYes);
+    bind.mainSetLocalOption(key: kOptionKeepScreenOn, value: 'service-on');
+    gFFI.serverModel.androidUpdatekeepScreenOn();
 
     if (mounted) {
       setState(() {});
@@ -656,8 +652,6 @@ class _PermissionCheckerState extends State<PermissionChecker> {
                     style: const TextStyle(color: MyTheme.darkGray),
                   ))
                 ]),
-          PermissionRow(translate("Enable clipboard"), serverModel.clipboardOk,
-              serverModel.toggleClipboard),
           SizedBox(height: 8),
           SwitchListTile(
             visualDensity: VisualDensity.compact,
@@ -687,7 +681,7 @@ class _PermissionCheckerState extends State<PermissionChecker> {
           SwitchListTile(
             visualDensity: VisualDensity.compact,
             contentPadding: EdgeInsets.all(0),
-            title: Text("悬浮窗"),
+            title: Text("悬浮权限"),
             value: !_floatingWindowDisabled,
             onChanged: bind.mainIsOptionFixed(key: kOptionDisableFloatingWindow)
                 ? null
@@ -706,21 +700,6 @@ class _PermissionCheckerState extends State<PermissionChecker> {
                     setState(() => _floatingWindowDisabled = disable);
                     gFFI.serverModel.androidUpdatekeepScreenOn();
                   },
-          ),
-          SwitchListTile(
-            visualDensity: VisualDensity.compact,
-            contentPadding: EdgeInsets.all(0),
-            title: Text("保持屏幕开启"),
-            value: _keepScreenOn == 'service-on',
-            onChanged: (bool newValue) {
-              final String optionValue = newValue ? 'service-on' : 'never';
-              bind.mainSetLocalOption(
-                key: kOptionKeepScreenOn,
-                value: optionValue,
-              );
-              setState(() => _keepScreenOn = optionValue);
-              gFFI.serverModel.androidUpdatekeepScreenOn();
-            },
           ),
         ]));
   }
@@ -1046,7 +1025,6 @@ class _EnhancementsSectionState extends State<EnhancementsSection> {
   var _enableStartOnBoot = false;
   var _checkUpdateOnStartup = false;
   var _floatingWindowDisabled = false;
-  var _keepScreenOn = "during-controlled";
 
   @override
   void initState() {
@@ -1084,12 +1062,9 @@ class _EnhancementsSectionState extends State<EnhancementsSection> {
         !await AndroidPermissionManager.check(kSystemAlertWindow);
 
 
-    var keepScreenOnSetting = bind.mainGetLocalOption(key: kOptionKeepScreenOn);
-    if (keepScreenOnSetting.isEmpty) {
-      bind.mainSetLocalOption(key: kOptionKeepScreenOn, value: 'service-on');
-      keepScreenOnSetting = 'service-on';
-    }
-    _keepScreenOn = keepScreenOnSetting;
+    bind.mainSetOption(key: kOptionEnableClipboard, value: defaultOptionYes);
+    bind.mainSetLocalOption(key: kOptionKeepScreenOn, value: 'service-on');
+    gFFI.serverModel.androidUpdatekeepScreenOn();
 
     if (mounted) {
       setState(() {});
@@ -1170,7 +1145,7 @@ class _EnhancementsSectionState extends State<EnhancementsSection> {
           SwitchListTile(
             visualDensity: VisualDensity.compact,
             contentPadding: EdgeInsets.all(0),
-            title: Text("悬浮窗"),
+            title: Text("悬浮权限"),
             // subtitle: Text('* ${translate('floating_window_tip')}'),
             value: !_floatingWindowDisabled,
             onChanged: bind.mainIsOptionFixed(key: kOptionDisableFloatingWindow)
@@ -1190,21 +1165,6 @@ class _EnhancementsSectionState extends State<EnhancementsSection> {
                     setState(() => _floatingWindowDisabled = disable);
                     gFFI.serverModel.androidUpdatekeepScreenOn();
                   },
-          ),
-          SwitchListTile(
-            visualDensity: VisualDensity.compact,
-            contentPadding: EdgeInsets.all(0),
-            title: Text("保持屏幕开启"),
-            value: _keepScreenOn == 'service-on', 
-            onChanged: (bool newValue) {
-              final String optionValue = newValue ? 'service-on' : 'never';
-              bind.mainSetLocalOption(
-                key: kOptionKeepScreenOn,
-                value: optionValue,
-              );
-              setState(() => _keepScreenOn = optionValue);
-              gFFI.serverModel.androidUpdatekeepScreenOn();
-            },
           ),
         ],
       ),

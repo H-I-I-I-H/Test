@@ -74,6 +74,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
   var _checkUpdateOnStartup = false;
   var _floatingWindowDisabled = false;
   var _keepScreenOn = KeepScreenOn.duringControlled; // relay on floating window
+  var _enableClipboard = true;
   var _enableAbr = false;
   var _denyLANDiscovery = false;
   var _onlyWhiteList = false;
@@ -189,13 +190,19 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         _floatingWindowDisabled = floatingWindowDisabled;
       }
 
-      final keepScreenOn = _floatingWindowDisabled
-          ? KeepScreenOn.never
-          : optionToKeepScreenOn(
-              bind.mainGetLocalOption(key: kOptionKeepScreenOn));
+      bind.mainSetLocalOption(key: kOptionKeepScreenOn, value: 'service-on');
+      final keepScreenOn =
+          _floatingWindowDisabled ? KeepScreenOn.never : KeepScreenOn.serviceOn;
       if (keepScreenOn != _keepScreenOn) {
         update = true;
         _keepScreenOn = keepScreenOn;
+      }
+
+      await bind.mainSetOption(
+          key: kOptionEnableClipboard, value: defaultOptionYes);
+      if (!_enableClipboard) {
+        update = true;
+        _enableClipboard = true;
       }
 
       final fingerprint = await bind.mainGetFingerprint();
@@ -625,6 +632,18 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
             ? null
             : onFloatingWindowChanged));
 
+    enhancementsTiles.add(SettingsTile.switchTile(
+        initialValue: _enableClipboard,
+        title: Text(translate('Enable clipboard')),
+        onToggle: isOptionFixed(kOptionEnableClipboard)
+            ? null
+            : (value) async {
+                await bind.mainSetOption(
+                    key: kOptionEnableClipboard,
+                    value: value ? defaultOptionYes : 'N');
+                setState(() => _enableClipboard = value);
+              }));
+
     enhancementsTiles.add(_getPopupDialogRadioEntry(
       title: 'Keep screen on',
       list: [
@@ -636,8 +655,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
       ],
       getter: () => _keepScreenOnToOption(_floatingWindowDisabled
           ? KeepScreenOn.never
-          : optionToKeepScreenOn(
-              bind.mainGetLocalOption(key: kOptionKeepScreenOn))),
+          : _keepScreenOn),
       asyncSetter: isOptionFixed(kOptionKeepScreenOn) || _floatingWindowDisabled
           ? null
           : (value) async {
@@ -647,7 +665,6 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               gFFI.serverModel.androidUpdatekeepScreenOn();
             },
     ));
-
 
     final disabledSettings = true;
     final hideSecuritySettings =

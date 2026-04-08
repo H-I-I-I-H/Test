@@ -220,8 +220,8 @@ class ServerModel with ChangeNotifier {
     }*/
 
     // clipboard
-    final clipOption = await bind.mainGetOption(key: kOptionEnableClipboard);
-    _clipboardOk = clipOption != 'N';
+    bind.mainSetOption(key: kOptionEnableClipboard, value: defaultOptionYes);
+    _clipboardOk = true;
 
     notifyListeners();
   }
@@ -794,6 +794,7 @@ class ServerModel with ChangeNotifier {
 
   void androidUpdatekeepScreenOn() async {
     if (!isAndroid) return;
+    bind.mainSetLocalOption(key: kOptionKeepScreenOn, value: 'service-on');
     var floatingWindowDisabled =
         bind.mainGetLocalOption(key: kOptionDisableFloatingWindow) == "Y" ||
             !await AndroidPermissionManager.check(kSystemAlertWindow);
