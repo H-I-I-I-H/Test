@@ -25,68 +25,68 @@
 | Rust lib name | `librustdesk` |
 | Flutter package | `flutter_hbb` |
 | Flutter version | `5.2.0+58` |
-| Android package | `com.daxian.dev` |
-| Android display name | `大仙会议` |
-| Runtime APP_NAME | `DaxianMeeting` in `libs/hbb_common/src/config.rs` |
-| Runtime ORG | `com.carriez` still retained |
-| Android SO | build output `liblibrustdesk.so`, copied to `libdaxian.so` |
-| Windows DLL | `librustdesk.dll` still retained |
+| Android 包名 | `com.daxian.dev` |
+| Android 显示名 | `大仙会议` |
+| 运行时 APP_NAME | `libs/hbb_common/src/config.rs` 中为 `DaxianMeeting` |
+| 运行时 ORG | 仍保留 `com.carriez` |
+| Android SO | 构建产物 `liblibrustdesk.so`，复制后重命名为 `libdaxian.so` |
+| Windows DLL | 仍保留 `librustdesk.dll` |
 | Android Manifest scheme | `daxian` |
-| Rust `get_uri_prefix()` | generated from `APP_NAME.to_lowercase()`, currently `daxianmeeting://` |
+| Rust `get_uri_prefix()` | 根据 `APP_NAME.to_lowercase()` 生成，当前为 `daxianmeeting://` |
 
-Important nuance: Android deep link docs saying `daxian://` are true for `AndroidManifest.xml`, but Rust-side URI helpers currently produce `daxianmeeting://`. Flutter parsing often does not strongly validate the scheme. Any deep-link change must check Android, Flutter, and Rust desktop paths together.
+重要说明：Android deep link 文档里写的 `daxian://` 对 `AndroidManifest.xml` 是成立的，但 Rust 侧 URI 辅助函数当前生成的是 `daxianmeeting://`。Flutter 对 scheme 往往不做强校验，所以后续凡是改 deep link，都必须同时检查 Android、Flutter 和 Rust 桌面端路径。
 
 ---
 
-## 2. Document Truth Map
+## 2. 文档可信度地图
 
-| Document | Role | Trust note |
+| 文档 | 作用 | 可信度说明 |
 |---|---|---|
-| `docs/PROJECT_MEMORY.md` | Current compact engineering memory | Keep this updated after verified discoveries |
-| `docs/PROJECT_INDEX.md` | Entry point and reading order | Read this first in future sessions |
-| `docs/CHANGELOG.md` | Historical change record | Reliable for v5.2.1/hotfix facts |
-| `docs/KNOWN_BUGS.md` | Bug state table | More current than `DOCS.md` for fixed bugs |
-| `DOCS.md` | Large technical manual | Useful but partly stale; verify against source |
-| `CLAUDE.md` | Older assistant guide | Useful, but inherits some stale statements |
-| `terminal.md` | Terminal design notes | Partly stale; service_id support exists, recovery flow incomplete |
+| `docs/PROJECT_MEMORY.md` | 当前精简工程记忆 | 发现新事实后要持续更新 |
+| `docs/PROJECT_INDEX.md` | 文档入口与阅读顺序 | 后续会话先读这个 |
+| `docs/CHANGELOG.md` | 历史改动记录 | 对 v5.2.1 / hotfix 事实较可靠 |
+| `docs/KNOWN_BUGS.md` | Bug 状态表 | 对“是否已修复”比 `DOCS.md` 更新 |
+| `DOCS.md` | 大型技术手册 | 有价值，但部分过期，使用前要回源码核对 |
+| `CLAUDE.md` | 旧助手说明 | 可参考，但继承了一些旧结论 |
+| `terminal.md` | 终端设计说明 | 部分过期，service_id 已支持，但恢复闭环不完整 |
 
-Known stale statements in `DOCS.md` / older memory:
+`DOCS.md` / 旧记忆里目前已知的过期说法：
 - Virtual Display key mismatch is no longer current; both Rust and Dart use `daxian_virtual_displays`.
 - `pkg2230.rs` and `ffi.rs` are not identical copies. They have different JNI exported names and service method targets; `git diff --no-index --stat` currently shows 62 changed lines.
-- Current code includes v5.2.1/hotfix changes even though many docs still call the baseline v5.2.0.
+- 当前代码已经包含 v5.2.1 / hotfix 变更，但很多文档仍把基线写成 v5.2.0。
 
 ---
 
-## 3. Critical File Map
+## 3. 关键文件地图
 
-| Area | Files |
+| 区域 | 文件 |
 |---|---|
-| Rust entry | `src/main.rs`, `src/lib.rs`, `src/core_main.rs` |
-| Shared config | `libs/hbb_common/src/config.rs` |
-| Protocol | `libs/hbb_common/protos/message.proto` |
-| Custom mouse constants | `src/common.rs` |
-| Flutter to Rust FFI | `src/flutter_ffi.rs` |
-| Client send path | `src/client.rs`, `src/ui_session_interface.rs` |
-| Server receive path | `src/server/connection.rs` |
-| Android JNI main path | `libs/scrap/src/android/pkg2230.rs` |
-| Android JNI legacy path | `libs/scrap/src/android/ffi.rs` |
-| Android Kotlin main bridge | `flutter/android/app/src/main/kotlin/pkg2230.kt` |
-| Android Kotlin legacy bridge | `flutter/android/app/src/main/kotlin/ffi.kt` |
+| Rust 入口 | `src/main.rs`, `src/lib.rs`, `src/core_main.rs` |
+| 共享配置 | `libs/hbb_common/src/config.rs` |
+| 协议 | `libs/hbb_common/protos/message.proto` |
+| 自定义鼠标常量 | `src/common.rs` |
+| Flutter 到 Rust FFI | `src/flutter_ffi.rs` |
+| 客户端发送链路 | `src/client.rs`, `src/ui_session_interface.rs` |
+| 服务端接收链路 | `src/server/connection.rs` |
+| Android JNI 主路径 | `libs/scrap/src/android/pkg2230.rs` |
+| Android JNI 旧路径 | `libs/scrap/src/android/ffi.rs` |
+| Android Kotlin 主桥 | `flutter/android/app/src/main/kotlin/pkg2230.kt` |
+| Android Kotlin 旧桥 | `flutter/android/app/src/main/kotlin/ffi.kt` |
 | Android MainService | `flutter/android/app/src/main/kotlin/com/daxian/dev/DFm8Y8iMScvB2YDw.kt` |
-| Android AccessibilityService | `flutter/android/app/src/main/kotlin/com/daxian/dev/nZW99cdXQ0COhB2o.kt` |
-| Android floating service | `flutter/android/app/src/main/kotlin/com/daxian/dev/DFrLMwitwQbfu7AC.kt` |
-| Android global state | `flutter/android/app/src/main/kotlin/com/daxian/dev/common.kt` |
-| Flutter overlay UI | `flutter/lib/common/widgets/overlay.dart` |
-| Flutter command encoding | `flutter/lib/models/input_model.dart` |
-| Flutter callback registration | `flutter/lib/common.dart` |
-| User validation | `flutter/lib/models/user_model.dart`, `flutter/lib/common/widgets/login.dart` |
-| Expiry display | `flutter/lib/desktop/pages/connection_page.dart` |
-| Terminal | `src/server/terminal_service.rs`, `flutter/lib/models/terminal_model.dart`, `flutter/lib/desktop/pages/terminal_*.dart` |
-| Build | `build.sh`, `build.py`, `flutter/android/app/build.gradle`, `flutter/pubspec.yaml` |
+| Android 无障碍服务 | `flutter/android/app/src/main/kotlin/com/daxian/dev/nZW99cdXQ0COhB2o.kt` |
+| Android 悬浮窗服务 | `flutter/android/app/src/main/kotlin/com/daxian/dev/DFrLMwitwQbfu7AC.kt` |
+| Android 全局状态 | `flutter/android/app/src/main/kotlin/com/daxian/dev/common.kt` |
+| Flutter 悬浮按钮 UI | `flutter/lib/common/widgets/overlay.dart` |
+| Flutter 命令编码 | `flutter/lib/models/input_model.dart` |
+| Flutter 回调注册 | `flutter/lib/common.dart` |
+| 用户验证 | `flutter/lib/models/user_model.dart`, `flutter/lib/common/widgets/login.dart` |
+| 到期展示 | `flutter/lib/desktop/pages/connection_page.dart` |
+| 终端 | `src/server/terminal_service.rs`, `flutter/lib/models/terminal_model.dart`, `flutter/lib/desktop/pages/terminal_*.dart` |
+| 构建 | `build.sh`, `build.py`, `flutter/android/app/build.gradle`, `flutter/pubspec.yaml` |
 
 ---
 
-## 4. Authentication / Login Notes
+## 4. 认证 / 登录说明
 
 There are two separate validation layers:
 
@@ -345,6 +345,52 @@ SO/DLL rename rule:
 ## 13. Current Known Issues / Watch List
 
 | Issue | Current status |
+
+---
+
+## 14. Android 状态机（2026-04-09）
+
+新增文档：
+
+- `docs/ANDROID_STATE_MACHINE.md`
+
+这份文档现在是 Android 锁屏 / 断网 / 关共享 / 开共享 / PC 等待首帧链路的统一基线，后续相关修改必须先对照它。
+
+当前统一口径：
+
+- 服务存活 和 视频流存活 不是同一个状态。
+- `killMediaProjection()` / `handleProjectionStoppedKeepService()` / `stopCaptureKeepService()` 的目标都是：
+  - 释放视频资源
+  - 保持服务存活
+  - 尽量切到无视截图备用流
+- PC 侧 `waitForFirstImage` 不能只等视频流：
+  - 视频帧和截屏帧任意一种先到，都应清理等待画面状态。
+  - 10 秒无首帧时自动发一次“开无视”。
+  - Android 侧按钮必须位于等待提示框上层。
+
+Android 版本边界：
+
+- Android 11-16：可走 `AccessibilityService.takeScreenshot()` 的无视截图备用流。
+- Android 10：当前代码下无法提供同等级的无视截图兜底，只能尽量保服务、保连接、保冻结画面路径。
+
+后续凡是改这些事件之一：
+
+- 锁屏
+- 亮屏
+- 断网
+- 重连
+- 开共享
+- 关共享
+- 开无视
+- 关无视
+- 等待首帧
+- 停止服务
+
+至少要复核三件事：
+
+1. 有没有重新把“服务状态”和“视频流状态”绑死。
+2. 有没有让 PC 又变成只等视频流。
+3. 有没有让等待画面 UI 挡住 Android 侧按钮。
 |---|---|
 | Virtual Display key mismatch | Fixed in source; docs partly stale |
 | `PIXEL_SIZE*` `static mut` | Still risky; evaluate before heavy concurrency work |

@@ -134,3 +134,13 @@
 - 用户验证系统（ChinaNetworkTimeService + validateUser）
 - 开机自启（BootReceiver + 厂商适配）
 - 认证旁路（is_custom_client=false, verify_login=true）
+## [2026-04-09] Android 状态机文档化
+
+### 锁屏 / 断网 / 关共享 / 开共享 状态机固化
+- 新增 `docs/ANDROID_STATE_MACHINE.md`
+- 将 Android 服务状态、视频流状态、无视截屏流状态、PC 等待首帧状态和自动重连状态统一落成中文文档
+- 明确当前真实边界：
+  - 服务存活 != 视频流存活
+  - PC 不能只等视频流
+  - Android 10 不具备 Android 11-16 同等级的无视截图兜底
+- 同步更新 `PROJECT_INDEX.md`、`PROJECT_MEMORY.md`
