@@ -28,6 +28,9 @@ const String kPlatformAdditionsAmyuniVirtualDisplays =
 const String kPlatformAdditionsHasFileClipboard = "has_file_clipboard";
 const String kPlatformAdditionsSupportedPrivacyModeImpl =
     "supported_privacy_mode_impl";
+const String kPlatformAdditionsAndroidSdkInt = "android_sdk_int";
+const String kPlatformAdditionsAndroidIgnoreCaptureSupported =
+    "android_ignore_capture_supported";
 
 const String kPeerPlatformWindows = "Windows";
 const String kPeerPlatformLinux = "Linux";

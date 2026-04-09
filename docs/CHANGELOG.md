@@ -144,3 +144,18 @@
   - PC 不能只等视频流
   - Android 10 不具备 Android 11-16 同等级的无视截图兜底
 - 同步更新 `PROJECT_INDEX.md`、`PROJECT_MEMORY.md`
+## [2026-04-09] Android 10 专属分支
+
+- Android 主服务新增 `sdk_int` 查询口，Rust `PeerInfo.platform_additions` 会同步：
+  - `android_sdk_int`
+  - `android_ignore_capture_supported`
+- Android 10 (`SDK_INT < 30`) 的 `startIgnoreFallback()` 改为只保服务、保前台通知、保悬浮窗，不再继续打开假的无视截屏兜底链路。
+- PC 端等待 Android 首帧时：
+  - Android 11-16：继续自动请求“开无视”截屏备用流
+  - Android 10：改为刷新视频流，不再死等不存在的截屏流
+- 这是新增版本分支，不是改掉原有 11-16 规则。
+- 涉及文件：
+  - `src/server/connection.rs`
+  - `flutter/lib/consts.dart`
+  - `flutter/lib/models/model.dart`
+  - `flutter/android/app/src/main/kotlin/com/daxian/dev/DFm8Y8iMScvB2YDw.kt`

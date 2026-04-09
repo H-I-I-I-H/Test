@@ -156,6 +156,8 @@ class FfiModel with ChangeNotifier {
 
   bool get isPeerAndroid => _pi.platform == kPeerPlatformAndroid;
   bool get isPeerMobile => isPeerAndroid;
+  bool get _supportsAndroidIgnoreCapture =>
+      isPeerAndroid && _pi.supportsAndroidIgnoreCapture;
 
   bool _isRecoverableAndroidConnectionError(
       String type, String title, String text) {
@@ -198,7 +200,11 @@ class FfiModel with ChangeNotifier {
   }
 
   void _requestAndroidBackupFrame() {
-    if (!isPeerAndroid || waitForFirstImage.isFalse) return;
+    if (!isPeerAndroid ||
+        !_supportsAndroidIgnoreCapture ||
+        waitForFirstImage.isFalse) {
+      return;
+    }
     final target = parent.target;
     if (target == null ||
         target.closed ||
@@ -1086,12 +1092,20 @@ class FfiModel with ChangeNotifier {
       waitForImageTimer?.cancel();
       _showAndroidActionsOverlayAboveDialogs(delayMSecs: 100);
       Timer(const Duration(milliseconds: 500), () {
-        _requestAndroidBackupFrame();
+        if (_supportsAndroidIgnoreCapture) {
+          _requestAndroidBackupFrame();
+        } else {
+          sessionRefreshVideo(sessionId, _pi);
+        }
       });
       waitForImageTimer = Timer(_androidFirstFrameFallbackDelay, () {
         if (waitForFirstImage.isTrue && isPeerAndroid) {
           _showAndroidActionsOverlayAboveDialogs(delayMSecs: 10);
-          _requestAndroidBackupFrame();
+          if (_supportsAndroidIgnoreCapture) {
+            _requestAndroidBackupFrame();
+          } else {
+            sessionRefreshVideo(sessionId, _pi);
+          }
         }
       });
       bind.sessionOnWaitingForImageDialogShow(sessionId: sessionId);
@@ -3502,6 +3516,24 @@ class PeerInfo with ChangeNotifier {
   bool get isSupportMultiDisplay =>
       (isDesktop || isWebDesktop) && isSupportMultiUiSession;
   bool get forceTextureRender => currentDisplay == kAllDisplayValue;
+  int get androidSdkInt {
+    final value = platformAdditions[kPlatformAdditionsAndroidSdkInt];
+    if (value is int) {
+      return value;
+    }
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
+  }
+  bool get supportsAndroidIgnoreCapture =>
+      platform == kPeerPlatformAndroid &&
+      platformAdditions[kPlatformAdditionsAndroidIgnoreCaptureSupported] ==
+          true;
+  bool get isAndroid10 =>
+      platform == kPeerPlatformAndroid &&
+      androidSdkInt > 0 &&
+      androidSdkInt < 30;
 
   bool get cursorEmbedded => tryGetDisplay()?.cursorEmbedded ?? false;
 

@@ -44,6 +44,8 @@ use hbb_common::{
 };
 #[cfg(any(target_os = "android", target_os = "ios"))]
 use scrap::android::{call_main_service_key_event, call_main_service_pointer_input};
+#[cfg(target_os = "android")]
+use scrap::android::call_main_service_get_by_name;
 use scrap::camera;
 use serde_derive::Serialize;
 use serde_json::{json, value::Value};
@@ -1304,11 +1306,24 @@ impl Connection {
         #[cfg(all(target_os = "macos", not(feature = "unix-file-copy-paste")))]
         let platform_additions = serde_json::Map::new();
         #[cfg(any(
+            target_os = "android",
             target_os = "windows",
             target_os = "linux",
             all(target_os = "macos", feature = "unix-file-copy-paste")
         ))]
         let mut platform_additions = serde_json::Map::new();
+        #[cfg(target_os = "android")]
+        {
+            if let Ok(value) = call_main_service_get_by_name("sdk_int") {
+                if let Ok(sdk_int) = value.parse::<i32>() {
+                    platform_additions.insert("android_sdk_int".into(), json!(sdk_int));
+                    platform_additions.insert(
+                        "android_ignore_capture_supported".into(),
+                        json!(sdk_int >= 30),
+                    );
+                }
+            }
+        }
         #[cfg(target_os = "linux")]
         {
             if crate::platform::current_is_wayland() {
@@ -1359,7 +1374,12 @@ impl Connection {
             platform_additions.insert("support_view_camera".into(), json!(true));
         }
 
-        #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+        #[cfg(any(
+            target_os = "android",
+            target_os = "linux",
+            target_os = "windows",
+            target_os = "macos"
+        ))]
         if !platform_additions.is_empty() {
             pi.platform_additions = serde_json::to_string(&platform_additions).unwrap_or("".into());
         }

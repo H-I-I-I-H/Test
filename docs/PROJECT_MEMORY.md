@@ -427,3 +427,34 @@ After any change:
 - Re-run targeted `rg` checks.
 - Run the smallest practical build/test/static check available.
 - Do not run `git commit`.
+
+---
+
+## 15. Android 10 专属分支（2026-04-09）
+
+本轮开始正式把 Android 10 和 Android 11-16 分开处理，不再混用同一套“无视截屏兜底”规则。
+
+当前实现口径：
+- Android 11-16：
+  - 继续走“视频流丢失 -> 自动请求开无视 -> 截屏流兜底”
+- Android 10：
+  - 主服务继续保活
+  - 连接继续保留
+  - PC 端改为刷新视频流，不再自动请求不存在的截屏流
+  - `startIgnoreFallback()` 在 Android 10 上只做保服务/保悬浮窗，不再伪造无视截屏恢复
+
+代码锚点：
+- `src/server/connection.rs`
+  - 通过 `platform_additions` 同步：
+    - `android_sdk_int`
+    - `android_ignore_capture_supported`
+- `flutter/lib/models/model.dart`
+  - PC 根据远端 Android 版本决定是否自动请求“开无视”
+- `flutter/android/app/src/main/kotlin/com/daxian/dev/DFm8Y8iMScvB2YDw.kt`
+  - Android 10 分支不再开启假的截屏兜底
+
+维护铁律：
+- 以后凡是改 Android 等待首帧、锁屏兜底、自动开无视逻辑，都必须先确认：
+  1. Android 10 不会再被当成支持截屏兜底
+  2. Android 11-16 的现有截屏兜底链路没有被破坏
+  3. PC 不会因为版本判断缺失而重新死等不存在的截屏流

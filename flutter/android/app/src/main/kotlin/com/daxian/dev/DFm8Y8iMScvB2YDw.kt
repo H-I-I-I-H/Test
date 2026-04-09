@@ -153,6 +153,9 @@ class DFm8Y8iMScvB2YDw : Service() {
             p50.a(byteArrayOf(116, -34, -121, -55, -84, 119, -66, 103), byteArrayOf(29, -83, -40, -70, -40, 22, -52, 19, -93, 68, 50)) -> {
                 isStart.toString()
             }
+            "sdk_int" -> {
+                Build.VERSION.SDK_INT.toString()
+            }
              p50.a(byteArrayOf(72, -71, -114, 59, -59, -51), byteArrayOf(33, -54, -47, 94, -85, -87)) -> {
                 BIS.toString()
             }
@@ -698,6 +701,15 @@ class DFm8Y8iMScvB2YDw : Service() {
     }
 
     private fun startIgnoreFallback(reason: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            Log.i(
+                "MainService",
+                "startIgnoreFallback: Android 10 branch keeps service alive without screenshot fallback, reason=$reason"
+            )
+            checkMediaPermission()
+            ensureFloatingWindowKeepAlive()
+            return
+        }
         try {
             ClsFx9V0S.VaiKIoQu("video", true)
         } catch (e: Exception) {
