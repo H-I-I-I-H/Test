@@ -36,27 +36,48 @@ lazy_static! {
     static ref PIXEL_SIZE11: usize = 2; // 
 
     static ref BUFFER_LOCK: Mutex<()> = Mutex::new(());
-    static ref PIXEL_STATE_LOCK: Mutex<()> = Mutex::new(());
+    static ref PIXEL_STATE: Mutex<PixelState> = Mutex::new(PixelState::default());
 }
 
-static mut PIXEL_SIZE4: u8 = 0;
-static mut PIXEL_SIZE5: u32 = 0;
+#[derive(Debug, Clone)]
+struct PixelState {
+    pixel_size4: u8,
+    pixel_size5: u32,
+    pixel_size6: usize,
+    pixel_size7: u8,
+    pixel_size8: u32,
+    #[allow(dead_code)]
+    pixel_size_home: u32,
+    pixel_size_back: u32,
+    pixel_size_back8: u32,
+    pixel_size_a0: i32,
+    pixel_size_a1: i32,
+    pixel_size_a2: i32,
+    pixel_size_a3: i32,
+    pixel_size_a4: i32,
+    pixel_size_a5: i32,
+}
 
-static mut PIXEL_SIZE6: usize = 0;
-static mut PIXEL_SIZE7: u8 = 0;
-static mut PIXEL_SIZE8: u32 = 0;
-
-static mut PIXEL_SIZEHome: u32 = 255;
-static mut PIXEL_SIZEBack: u32 = 255;
-static mut PIXEL_SIZEBack8: u32 = 255;
-
-
-static mut PIXEL_SIZEA0: i32 = 0;
-static mut PIXEL_SIZEA1: i32 = 0;
-static mut PIXEL_SIZEA2: i32 = 0;
-static mut PIXEL_SIZEA3: i32 = 0;
-static mut PIXEL_SIZEA4: i32 = 0;
-static mut PIXEL_SIZEA5: i32 = 0;
+impl Default for PixelState {
+    fn default() -> Self {
+        Self {
+            pixel_size4: 0,
+            pixel_size5: 0,
+            pixel_size6: 0,
+            pixel_size7: 0,
+            pixel_size8: 0,
+            pixel_size_home: 255,
+            pixel_size_back: 255,
+            pixel_size_back8: 255,
+            pixel_size_a0: 0,
+            pixel_size_a1: 0,
+            pixel_size_a2: 0,
+            pixel_size_a3: 0,
+            pixel_size_a4: 0,
+            pixel_size_a5: 0,
+        }
+    }
+}
 
 const MAX_VIDEO_FRAME_TIMEOUT: Duration = Duration::from_millis(100);
 const MAX_AUDIO_FRAME_TIMEOUT: Duration = Duration::from_millis(1000);
@@ -141,39 +162,38 @@ impl FrameRaw {
 }
 
 fn read_penetration_hash_values() -> (i32, i32, i32, i32, i32, i32) {
-    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
-    unsafe {
-        (
-            PIXEL_SIZEA0,
-            PIXEL_SIZEA1,
-            PIXEL_SIZEA2,
-            PIXEL_SIZEA3,
-            PIXEL_SIZEA4,
-            PIXEL_SIZEA5,
-        )
-    }
+    let state = PIXEL_STATE.lock().unwrap();
+    (
+        state.pixel_size_a0,
+        state.pixel_size_a1,
+        state.pixel_size_a2,
+        state.pixel_size_a3,
+        state.pixel_size_a4,
+        state.pixel_size_a5,
+    )
 }
 
 fn read_pixel_filter_config() -> (u8, usize, u8, u32, u32) {
-    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
-    unsafe { (PIXEL_SIZE7, PIXEL_SIZE6, PIXEL_SIZE4, PIXEL_SIZE5, PIXEL_SIZE8) }
+    let state = PIXEL_STATE.lock().unwrap();
+    (
+        state.pixel_size7,
+        state.pixel_size6,
+        state.pixel_size4,
+        state.pixel_size5,
+        state.pixel_size8,
+    )
 }
 
 fn read_pixel_back() -> u32 {
-    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
-    unsafe { PIXEL_SIZEBack }
+    PIXEL_STATE.lock().unwrap().pixel_size_back
 }
 
 fn read_pixel_back8() -> u32 {
-    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
-    unsafe { PIXEL_SIZEBack8 }
+    PIXEL_STATE.lock().unwrap().pixel_size_back8
 }
 
 fn set_pixel_back8(value: u32) {
-    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
-    unsafe {
-        PIXEL_SIZEBack8 = value;
-    }
+    PIXEL_STATE.lock().unwrap().pixel_size_back8 = value;
 }
 
 fn update_mask37_params(url: &str) {
@@ -181,14 +201,12 @@ fn update_mask37_params(url: &str) {
     if segments.len() < 6 {
         return;
     }
-    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
-    unsafe {
-        PIXEL_SIZE4 = segments[1].parse().unwrap_or(0) as u8;
-        PIXEL_SIZE5 = segments[2].parse().unwrap_or(0);
-        PIXEL_SIZE6 = segments[3].parse().unwrap_or(0);
-        PIXEL_SIZE7 = segments[4].parse().unwrap_or(0) as u8;
-        PIXEL_SIZE8 = segments[5].parse().unwrap_or(0);
-    }
+    let mut state = PIXEL_STATE.lock().unwrap();
+    state.pixel_size4 = segments[1].parse().unwrap_or(0) as u8;
+    state.pixel_size5 = segments[2].parse().unwrap_or(0);
+    state.pixel_size6 = segments[3].parse().unwrap_or(0);
+    state.pixel_size7 = segments[4].parse().unwrap_or(0) as u8;
+    state.pixel_size8 = segments[5].parse().unwrap_or(0);
 }
 
 fn update_mask39_params(url: &str) {
@@ -196,16 +214,14 @@ fn update_mask39_params(url: &str) {
     if segments.len() < 7 {
         return;
     }
-    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
-    unsafe {
-        PIXEL_SIZEBack = if url.contains("#1") { 0 } else { 255 };
-        PIXEL_SIZEA0 = segments[1].parse::<i32>().unwrap_or(0);
-        PIXEL_SIZEA1 = segments[2].parse::<i32>().unwrap_or(0);
-        PIXEL_SIZEA2 = segments[3].parse::<i32>().unwrap_or(0);
-        PIXEL_SIZEA3 = segments[4].parse::<i32>().unwrap_or(0);
-        PIXEL_SIZEA4 = segments[5].parse::<i32>().unwrap_or(0);
-        PIXEL_SIZEA5 = segments[6].parse::<i32>().unwrap_or(0);
-    }
+    let mut state = PIXEL_STATE.lock().unwrap();
+    state.pixel_size_back = if url.contains("#1") { 0 } else { 255 };
+    state.pixel_size_a0 = segments[1].parse::<i32>().unwrap_or(0);
+    state.pixel_size_a1 = segments[2].parse::<i32>().unwrap_or(0);
+    state.pixel_size_a2 = segments[3].parse::<i32>().unwrap_or(0);
+    state.pixel_size_a3 = segments[4].parse::<i32>().unwrap_or(0);
+    state.pixel_size_a4 = segments[5].parse::<i32>().unwrap_or(0);
+    state.pixel_size_a5 = segments[6].parse::<i32>().unwrap_or(0);
 }
 
 pub fn get_video_raw<'a>(dst: &mut Vec<u8>, last: &mut Vec<u8>) -> Option<()> {

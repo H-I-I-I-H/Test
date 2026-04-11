@@ -69,7 +69,7 @@
 | Flutter 到 Rust FFI | `src/flutter_ffi.rs` |
 | 客户端发送链路 | `src/client.rs`, `src/ui_session_interface.rs` |
 | 服务端接收链路 | `src/server/connection.rs` |
-| Android JNI 主路径 | `libs/scrap/src/android/pkg2230.rs`（`PIXEL_SIZE*` 主读写已由 `PIXEL_STATE_LOCK` 收口） |
+| Android JNI 主路径 | `libs/scrap/src/android/pkg2230.rs`（`PIXEL_SIZE*` 已改为 `Mutex<PixelState>` 统一承载） |
 | Android JNI 旧路径 | `libs/scrap/src/android/ffi.rs` |
 | Android Kotlin 主桥 | `flutter/android/app/src/main/kotlin/pkg2230.kt` |
 | Android Kotlin 旧桥 | `flutter/android/app/src/main/kotlin/ffi.kt` |
@@ -120,7 +120,8 @@ Android JNI pixel-state reality:
 - Kotlin 侧对应的 live bridge 是 `flutter/android/app/src/main/kotlin/pkg2230.kt`；`flutter/android/app/src/main/kotlin/ffi.kt` 仅保留 legacy 兼容/参考角色。
 - 自 2026-04-11 起，`mask == 37` / `mask == 39` 的像素参数更新已改为同步写入，不再 `thread::spawn` 后台线程去改 `PIXEL_SIZE*` 全局值。
 - `PIXEL_SIZE7 == 0` / `PIXEL_SIZEA0 == 0` 的一次性初始化逻辑已移除，后续参数变更会覆盖旧值并立即生效。
-- 当前 `PIXEL_SIZE*` 仍是 `static mut` 形态，但 JNI 主读写路径已通过 `PIXEL_STATE_LOCK` 收口；后续如果继续治理并发，要在不破坏 Android 控制链的前提下逐步去全局态。
+- 自 2026-04-12 起，`pkg2230.rs` 里的 `PIXEL_SIZE*` 已不再使用 `static mut`；live path 改为 `Mutex<PixelState>` 统一承载，读写继续保持在 helper 入口中完成。
+- 这次治理只替换了内部状态存储方式，没有改 `mask 37/39/40` 语义，没有改 Flutter / Rust / Kotlin 控制命令链，也没有改侧按钮协议。
 
 Android service/video state reality:
 - 自 2026-04-11 起，`DFm8Y8iMScvB2YDw.kt` 里新增 `ServiceVideoState`、`logServiceVideoState()`、`markProjectionStreamingState()`、`transitionToServiceAliveWithoutProjection()`，用来显式区分“服务活着”“MediaProjection 投屏中”“无视截屏备用流中”。
@@ -284,7 +285,7 @@ Important Rust pixel globals:
 | `PIXEL_SIZEBack8` | Ignore-mode frame guard, 0 allows frame, 255 drops frame |
 
 Known risk:
-- `PIXEL_SIZE*` values use `static mut`; thread-safety still needs evaluation.
+- `PIXEL_SIZE*` live-path storage now uses `Mutex<PixelState>` in `pkg2230.rs`; future Android work should continue through the helper functions instead of reintroducing direct globals.
 
 ---
 
@@ -438,7 +439,7 @@ Android 版本边界：
 3. 有没有让等待画面 UI 挡住 Android 侧按钮。
 |---|---|
 | Virtual Display key mismatch | Fixed in source; docs partly stale |
-| `PIXEL_SIZE*` `static mut` | Still risky; evaluate before heavy concurrency work |
+| `PIXEL_SIZE*` live-path state | Switched to `Mutex<PixelState>` on 2026-04-12; keep future changes on the helper path |
 | `ffi.rs` backup/legacy split | Not identical to `pkg2230.rs`; sync deliberately |
 | `targetSdkVersion=34` | Updated on 2026-04-11; re-test Android 14+ foreground service + MediaProjection flows after packaging |
 | Windows DLL still `librustdesk.dll` | Intentional project decision; not tracked as a risk item |

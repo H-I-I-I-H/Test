@@ -3,7 +3,7 @@
 | 序号 | 问题 | 严重性 | 位置 | 状态 |
 |------|------|--------|------|------|
 | 1 | Virtual Display key 不匹配：Rust 发 "rustdesk_virtual_displays"，Dart 期望 "daxian_virtual_displays" | 高 | virtual_display_manager.rs vs consts.dart | **已修复 v5.2.1** |
-| 2 | `pkg2230.rs` 中 `PIXEL_SIZE*` 采用 `static mut`，且控制命令分支会起后台线程写这些全局值，存在竞态和状态撕裂风险 | 高 | `libs/scrap/src/android/pkg2230.rs` | **部分缓解 2026-04-11（live path 已加锁并移除后台线程写入；`static mut` 形态仍在）** |
+| 2 | `pkg2230.rs` 中 `PIXEL_SIZE*` 采用 `static mut`，且控制命令分支会起后台线程写这些全局值，存在竞态和状态撕裂风险 | 高 | `libs/scrap/src/android/pkg2230.rs` | **已修复 2026-04-12（live path 已改为 `Mutex<PixelState>` 统一承载；按钮协议和控制链未改）** |
 | 3 | 把 `ffi.rs` 当成必须同步的 live path 是过期结论；当前 live path 是 `pkg2230.rs`，误同步可能把旧 JNI/旧服务方法名回灌到主链 | 高 | `libs/scrap/src/android/`, `flutter/android/app/src/main/kotlin/` | **部分缓解 2026-04-11（源码已明确 `pkg2230` 为 live path，`ffi` 标为 legacy；旧文件仍保留）** |
 | 4 | targetSdkVersion=33，低于 Google Play 要求的 34+ | 中 | build.gradle | **已修复 2026-04-11（已提升到 34；Android 14+ 需重点回归前台服务与投屏授权恢复链）** |
 | 6 | verify_rustdesk_password_tip 翻译 key 残留 RustDesk | 低 | dialog.dart | **已修复 2026-04-11（UI 入口改用中性 key，lang.rs 对旧 key 做兼容别名）** |

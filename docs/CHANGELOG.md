@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-04-12] Android JNI 底层治理：`pkg2230.rs` 去 `static mut`
+### 只替换内部状态承载，保持按钮协议和控制链不变
+- `libs/scrap/src/android/pkg2230.rs` 里的 `PIXEL_SIZE4~8`、`PIXEL_SIZEBack/Back8`、`PIXEL_SIZEA0~A5` 已从裸 `static mut` 全局变量切换为 `Mutex<PixelState>` 统一承载。
+- `read_penetration_hash_values()`、`read_pixel_filter_config()`、`read_pixel_back()`、`read_pixel_back8()`、`set_pixel_back8()`、`update_mask37_params()`、`update_mask39_params()` 继续作为唯一读写入口，行为语义保持不变。
+- 这次没有修改 `mask 37/39/40`、没有修改 Flutter 侧按钮类型、没有修改 Rust/Flutter/Kotlin/JNI 的控制协议，只是把 Android JNI live path 的内部状态从“散装全局变量”替换成了受控状态对象。
+- 目标是降低后续 Android 侧按钮、无视、穿透、共享切换链路上的竞态和状态撕裂风险，同时尽量不引入行为回归。
+- 涉及文件：`libs/scrap/src/android/pkg2230.rs`, `docs/KNOWN_BUGS.md`, `docs/PROJECT_MEMORY.md`, `docs/CHANGELOG.md`
+
 ## [2026-04-11] 文档决策同步：Windows `librustdesk.dll` 不再列为风险项
 ### 保留当前 DLL 名称，作为明确项目决策记录
 - 根据项目负责人确认，Windows 侧继续保留 `librustdesk.dll`，无需改名，也不再作为高风险或待处理项跟踪。
