@@ -71,7 +71,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
           _updateExpiryInfo();
         });
       } else {
-        _expiryInfo.value = {'days': null, 'hours': null, 'minutes': null, 'expiryDate': null};
+        _expiryInfo.value = UserModel.emptyExpiryInfo();
       }
     });
     
@@ -106,7 +106,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
         final info = await _getExpiryInfo();
         _expiryInfo.value = info;
       } else {
-        _expiryInfo.value = {'daysLeft': null, 'expiryDate': null};
+        _expiryInfo.value = UserModel.emptyExpiryInfo();
       }
     } catch (e) {
       print('更新到期信息失败: $e');
@@ -117,58 +117,10 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   Future<Map<String, dynamic>> _getExpiryInfo() async {
     try {
       gFFI.userModel.refreshCurrentUser();
-
-      if (gFFI.userModel.userName.value.isEmpty) {
-        return {'days': null, 'hours': null, 'minutes': null, 'expiryDate': null};
-      }
-      
-      final email = bind.mainGetLocalOption(key: 'user_email') ?? '';
-      
-      if (email.isEmpty) {
-        return {'days': null, 'hours': null, 'minutes': null, 'expiryDate': null};
-      }
-      
-
-      String expiryStr = email;
-      if (email.contains('@')) {
-        expiryStr = email.split('@')[0];
-      }
-      
-      if (expiryStr.isEmpty || expiryStr.length < 12) {
-        return {'days': null, 'hours': null, 'minutes': null, 'expiryDate': null};
-      }
-      
-
-      DateTime now = DateTime.now();
-      
-      DateTime expiryDate = DateTime(
-        int.parse(expiryStr.substring(0, 4)),
-        int.parse(expiryStr.substring(4, 6)),
-        int.parse(expiryStr.substring(6, 8)),
-        int.parse(expiryStr.substring(8, 10)),
-        int.parse(expiryStr.substring(10, 12)),
-      );
-      
-      Duration remaining = expiryDate.difference(now);
-      if (remaining.isNegative) {
-        remaining = Duration.zero;
-      }
-      
-      int days = remaining.inDays;
-      int hours = remaining.inHours.remainder(24);
-      int minutes = remaining.inMinutes.remainder(60);
-      
-      String formattedDate = "${expiryDate.year}年${expiryDate.month.toString().padLeft(2, '0')}月${expiryDate.day.toString().padLeft(2, '0')}日 ${expiryDate.hour.toString().padLeft(2, '0')}:${expiryDate.minute.toString().padLeft(2, '0')}";
-      
-      return {
-        'days': days,
-        'hours': hours,
-        'minutes': minutes,
-        'expiryDate': formattedDate,
-      };
+      return await gFFI.userModel.getExpiryInfo();
     } catch (e) {
       debugPrint('Failed to get expiry info: $e');
-      return {'days': null, 'hours': null, 'minutes': null, 'expiryDate': null};
+      return UserModel.emptyExpiryInfo();
     }
   }
 

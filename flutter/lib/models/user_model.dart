@@ -132,6 +132,79 @@ class UserModel {
     await bind.mainSetLocalOption(key: 'user_email', value: '');
   }
 
+  static Map<String, dynamic> emptyExpiryInfo() {
+    return {
+      'days': null,
+      'hours': null,
+      'minutes': null,
+      'expiryDate': null,
+    };
+  }
+
+  static DateTime? parseProductExpiryDate(String email) {
+    if (email.isEmpty) {
+      return null;
+    }
+
+    var expiryStr = email;
+    if (email.contains('@')) {
+      expiryStr = email.split('@')[0];
+    }
+
+    if (expiryStr.isEmpty || expiryStr.length < 12) {
+      return null;
+    }
+
+    try {
+      return DateTime(
+        int.parse(expiryStr.substring(0, 4)),
+        int.parse(expiryStr.substring(4, 6)),
+        int.parse(expiryStr.substring(6, 8)),
+        int.parse(expiryStr.substring(8, 10)),
+        int.parse(expiryStr.substring(10, 12)),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String? parseProductMachineCode(String email) {
+    final parts = email.split('@');
+    if (parts.length > 1 && parts[1].isNotEmpty) {
+      return parts[1];
+    }
+    return null;
+  }
+
+  static String formatProductExpiryDate(DateTime expiryDate) {
+    return "${expiryDate.year}年${expiryDate.month.toString().padLeft(2, '0')}月${expiryDate.day.toString().padLeft(2, '0')}日 ${expiryDate.hour.toString().padLeft(2, '0')}:${expiryDate.minute.toString().padLeft(2, '0')}";
+  }
+
+  Future<Map<String, dynamic>> getExpiryInfo() async {
+    if (userName.value.isEmpty) {
+      return emptyExpiryInfo();
+    }
+
+    final email = bind.mainGetLocalOption(key: 'user_email') ?? '';
+    final expiryDate = parseProductExpiryDate(email);
+    if (expiryDate == null) {
+      return emptyExpiryInfo();
+    }
+
+    final now = await ChinaNetworkTimeService.getTime();
+    var remaining = expiryDate.difference(now);
+    if (remaining.isNegative) {
+      remaining = Duration.zero;
+    }
+
+    return {
+      'days': remaining.inDays,
+      'hours': remaining.inHours.remainder(24),
+      'minutes': remaining.inMinutes.remainder(60),
+      'expiryDate': formatProductExpiryDate(expiryDate),
+    };
+  }
+
 
   void refreshCurrentUser() async {
     //  return;
@@ -301,37 +374,17 @@ class UserModel {
     }
 
     if (user.email.isNotEmpty) {
-      String expiryStr;
-      String? machineCode;
-
-      final parts = user.email.split('@');
-      if (parts.length > 1) {
-
-        expiryStr = parts[0];
-        machineCode = parts[1];
-      } else {
-
-        expiryStr = parts[0];
-      }
-
-      DateTime networkTime = await ChinaNetworkTimeService.getTime();
-
-      try {
-        DateTime expiryDate = DateTime(
-          int.parse(expiryStr.substring(0, 4)),
-          int.parse(expiryStr.substring(4, 6)),
-          int.parse(expiryStr.substring(6, 8)),
-          int.parse(expiryStr.substring(8, 10)),
-          int.parse(expiryStr.substring(10, 12)),
-        );
-
-        if (expiryDate.isBefore(networkTime)) { 
-          return "account_expired";
-        }
-      } catch (e) {
+      final expiryDate = parseProductExpiryDate(user.email);
+      if (expiryDate == null) {
         return "invalid_expiry_date";
       }
 
+      final networkTime = await ChinaNetworkTimeService.getTime();
+      if (expiryDate.isBefore(networkTime)) {
+        return "account_expired";
+      }
+
+      final machineCode = parseProductMachineCode(user.email);
       if (machineCode != null) {
         String currentUuid = await bind.mainGetUuid();
         if (machineCode != currentUuid) {

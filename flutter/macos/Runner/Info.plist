@@ -29,7 +29,8 @@
 			<string>com.carriez.rustdesk</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>rustdesk</string>
+				<string>daxian</string>
+				<string>daxianmeeting</string>
 			</array>
 		</dict>
 	</array>

@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../../models/model.dart';
+import '../../models/platform_model.dart';
 
 /// Manages terminal connections to ensure one FFI instance per peer
 class TerminalConnectionManager {
+  static const _terminalServiceIdOption = 'terminal-service-id';
   static final Map<String, FFI> _connections = {};
   static final Map<String, int> _connectionRefCount = {};
   
@@ -43,6 +45,9 @@ class TerminalConnectionManager {
     
     // Register the FFI instance with Get for dependency injection
     Get.put<FFI>(ffi, tag: 'terminal_$peerId');
+
+    // Rust session option remains the source of truth; keep Flutter cache in sync.
+    syncServiceIdWithSession(peerId: peerId, ffi: ffi);
     
     debugPrint('[TerminalConnectionManager] New connection created. Total connections: ${_connections.length}');
     return ffi;
@@ -94,5 +99,37 @@ class TerminalConnectionManager {
   static void setServiceId(String peerId, String serviceId) {
     _serviceIds[peerId] = serviceId;
     debugPrint('[TerminalConnectionManager] Service ID for $peerId: $serviceId');
+  }
+
+  static Future<void> syncServiceIdWithSession({
+    required String peerId,
+    required FFI ffi,
+  }) async {
+    if (ffi.closed) return;
+    try {
+      final sessionServiceId = await bind.sessionGetPeerOption(
+        sessionId: ffi.sessionId,
+        name: _terminalServiceIdOption,
+      );
+
+      if (sessionServiceId.isNotEmpty) {
+        setServiceId(peerId, sessionServiceId);
+        return;
+      }
+
+      final cachedServiceId = _serviceIds[peerId];
+      if (cachedServiceId != null && cachedServiceId.isNotEmpty) {
+        await bind.sessionPeerOption(
+          sessionId: ffi.sessionId,
+          name: _terminalServiceIdOption,
+          value: cachedServiceId,
+        );
+        debugPrint(
+            '[TerminalConnectionManager] Restored cached service ID for $peerId into Rust session: $cachedServiceId');
+      }
+    } catch (e) {
+      debugPrint(
+          '[TerminalConnectionManager] Failed to sync service ID for $peerId: $e');
+    }
   }
 }

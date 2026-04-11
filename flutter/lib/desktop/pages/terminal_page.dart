@@ -57,8 +57,12 @@ class _TerminalPageState extends State<TerminalPage>
     _ffi.registerTerminalModel(widget.terminalId, _terminalModel);
 
     // Initialize terminal connection
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       widget.tabController.onSelected?.call(widget.id);
+      await TerminalConnectionManager.syncServiceIdWithSession(
+        peerId: widget.id,
+        ffi: _ffi,
+      );
       
       // Check if this is a new connection or additional terminal
       // Note: When a connection exists, the ref count will be > 1 after this terminal is added

@@ -43,7 +43,7 @@ rg -n "<关键词>" src libs flutter docs
 | Android 控制按钮 | `overlay.dart`, `input_model.dart`, `flutter_ffi.rs`, `pkg2230.rs`, `DFm8Y8iMScvB2YDw.kt`, `nZW99cdXQ0COhB2o.kt` |
 | 协议字段 | `libs/hbb_common/protos/message.proto`, `src/client.rs`, `src/server/connection.rs`, Flutter/Dart 调用点 |
 | SO 名称 | `build.sh`, `ffi.kt`, `pkg2230.kt`, `native_model.dart` |
-| Windows DLL 名称 | `flutter/windows/runner/main.cpp`, `native_model.dart`, Windows packaging scripts |
+| Windows DLL 名称 | `flutter/windows/runner/main.cpp`, `native_model.dart`, Windows packaging scripts（当前按项目决策保留，不列为风险项） |
 | Deep link | `AndroidManifest.xml`, `src/common.rs`, `src/core_main.rs`, `flutter/lib/common.dart`, `flutter/lib/mobile/pages/home_page.dart` |
 | 服务认证旁路 | `src/common.rs`, `src/ui.rs`, `src/flutter_ffi.rs` |
 | 用户授权/到期 | `user_model.dart`, `login.dart`, `connection_page.dart` |

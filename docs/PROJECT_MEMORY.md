@@ -30,11 +30,11 @@
 | 运行时 APP_NAME | `libs/hbb_common/src/config.rs` 中为 `DaxianMeeting` |
 | 运行时 ORG | 仍保留 `com.carriez` |
 | Android SO | 构建产物 `liblibrustdesk.so`，复制后重命名为 `libdaxian.so` |
-| Windows DLL | 仍保留 `librustdesk.dll` |
-| Android Manifest scheme | `daxian` |
-| Rust `get_uri_prefix()` | 根据 `APP_NAME.to_lowercase()` 生成，当前为 `daxianmeeting://` |
+| Windows DLL | 按项目决策保留 `librustdesk.dll`，不是风险项 |
+| Android Manifest scheme | 主 `daxian`，兼容 `daxianmeeting` |
+| Rust `get_uri_prefix()` | 固定为 `daxian://` |
 
-重要说明：Android deep link 文档里写的 `daxian://` 对 `AndroidManifest.xml` 是成立的，但 Rust 侧 URI 辅助函数当前生成的是 `daxianmeeting://`。Flutter 对 scheme 往往不做强校验，所以后续凡是改 deep link，都必须同时检查 Android、Flutter 和 Rust 桌面端路径。当前 `flutter/lib/common.dart` 里只有 `cmdArgs[0]` 路径会严格比对 `bind.mainUriPrefixSync()`；直接传入 `uriString` / `Uri` 的路径只做 `Uri.tryParse()`，这也是当前 split scheme 还能工作的现实原因之一。
+重要说明：自 2026-04-11 起，deep link 主前缀统一为 `daxian://`，并保留 `daxianmeeting://` 兼容。Windows 安装脚本、Android Manifest、iOS/macOS `Info.plist`、Flutter URI 解析都已同步到这套口径。
 
 ---
 
@@ -69,7 +69,7 @@
 | Flutter 到 Rust FFI | `src/flutter_ffi.rs` |
 | 客户端发送链路 | `src/client.rs`, `src/ui_session_interface.rs` |
 | 服务端接收链路 | `src/server/connection.rs` |
-| Android JNI 主路径 | `libs/scrap/src/android/pkg2230.rs` |
+| Android JNI 主路径 | `libs/scrap/src/android/pkg2230.rs`（`PIXEL_SIZE*` 主读写已由 `PIXEL_STATE_LOCK` 收口） |
 | Android JNI 旧路径 | `libs/scrap/src/android/ffi.rs` |
 | Android Kotlin 主桥 | `flutter/android/app/src/main/kotlin/pkg2230.kt` |
 | Android Kotlin 旧桥 | `flutter/android/app/src/main/kotlin/ffi.kt` |
@@ -89,20 +89,10 @@
 
 ## 4. 认证 / 登录说明
 
-There are two separate validation layers:
+There are two active product-account validation surfaces today:
 
-Rust server/client compatibility bypass in `src/common.rs`:
-
-```rust
-pub fn is_custom_client() -> bool {
-    false
-}
-
-pub fn verify_login(raw: &str, id: &str) -> bool {
-    true
-    /* original ed25519 verification remains commented */
-}
-```
+- Flutter product account validation in `flutter/lib/models/user_model.dart`
+- Sciter legacy UI product account validation in `src/ui/index.tis`
 
 Flutter product account validation in `flutter/lib/models/user_model.dart`:
 - `ChinaNetworkTimeService` tries NTP first, then HTTP `Date`, then local time fallback.
@@ -111,7 +101,54 @@ Flutter product account validation in `flutter/lib/models/user_model.dart`:
 - Error codes include `account_expired`, `invalid_expiry_date`, `device_uuid_mismatch`.
 - Login UI uses `curOP = 'daxian'` for the custom login path.
 
-Rule: do not treat the Rust `verify_login()` bypass as a replacement for the Flutter-side Daxian account/expiry binding flow. They protect different surfaces.
+Rule: product-account validation is still UI-layer logic today; do not assume it has been fully centralized into a new Rust authority path.
+
+Server / update defaults:
+- Rendezvous default host is `64.81.112.194`, with the current custom ports in `libs/hbb_common/src/config.rs`.
+- API fallback is still derived in `src/common.rs`.
+- As of 2026-04-11, software update is intentionally hard-disabled by `src/common.rs::is_software_update_disabled()`.
+- `check_software_update()` / `do_check_software_update()` now clear `SOFTWARE_UPDATE_URL` and return early, and `src/updater.rs` no longer starts background update checks when that flag is enabled.
+
+Sciter auth reality:
+- `src/ui/index.tis` 登录、2FA、`/api/currentUser` 刷新链路在 2026-04-11 已补上产品账号邮箱到期时间和 UUID 绑定校验。
+- `src/ui/index.tis` 不再依赖 `handler.verify_login(data.verifier, token)` 这条旧校验链继续放行用户态。
+- 自 2026-04-11 起，`src/common.rs::verify_login()` 这个恒为 `true` 的旧 stub 已删除，`src/ui.rs` 也不再向 Sciter 暴露 `handler.verify_login(...)`。
+- 认证面仍然没有“全新 Rust 权威入口”，当前只是把会误导维护者的 legacy 空放行桥清掉了。
+
+Android JNI pixel-state reality:
+- Android JNI live path 仍以 `libs/scrap/src/android/pkg2230.rs` 为准，不要把 `ffi.rs` 当成同等级 live path。
+- Kotlin 侧对应的 live bridge 是 `flutter/android/app/src/main/kotlin/pkg2230.kt`；`flutter/android/app/src/main/kotlin/ffi.kt` 仅保留 legacy 兼容/参考角色。
+- 自 2026-04-11 起，`mask == 37` / `mask == 39` 的像素参数更新已改为同步写入，不再 `thread::spawn` 后台线程去改 `PIXEL_SIZE*` 全局值。
+- `PIXEL_SIZE7 == 0` / `PIXEL_SIZEA0 == 0` 的一次性初始化逻辑已移除，后续参数变更会覆盖旧值并立即生效。
+- 当前 `PIXEL_SIZE*` 仍是 `static mut` 形态，但 JNI 主读写路径已通过 `PIXEL_STATE_LOCK` 收口；后续如果继续治理并发，要在不破坏 Android 控制链的前提下逐步去全局态。
+
+Android service/video state reality:
+- 自 2026-04-11 起，`DFm8Y8iMScvB2YDw.kt` 里新增 `ServiceVideoState`、`logServiceVideoState()`、`markProjectionStreamingState()`、`transitionToServiceAliveWithoutProjection()`，用来显式区分“服务活着”“MediaProjection 投屏中”“无视截屏备用流中”。
+- `startCapture()` 统一进入投屏状态；`handleProjectionStoppedKeepService()`、`killMediaProjection()`、`stopCaptureKeepService()`、`stopCapture2()` 在释放视频资源后统一走“服务继续活着”的状态收口。
+- 本地主动 `MediaProjection.stop()` 的路径现在会先设置 callback suppression，避免系统 `onStop()` 再重复触发一次“系统停投屏 -> 开备用流”链路。
+- 后续如果修改锁屏、断网、关共享、系统投屏回调，不要再在各分支里各写一套 `_isReady/_isStart`，优先复用 MainService 里的统一状态入口。
+
+Expiry time reality:
+- 自 2026-04-11 起，产品账号邮箱中的到期时间解析、机器码提取、到期时间格式化和剩余时间计算统一由 `flutter/lib/models/user_model.dart` 提供。
+- `flutter/lib/desktop/pages/connection_page.dart` 不再直接用本地 `DateTime.now()` 算剩余时间，而是复用 `ChinaNetworkTimeService.getTime()` 同口径的 `UserModel.getExpiryInfo()`。
+- 后续如果改到期展示或账号拦截，不要再在页面层自己 parse `user_email` 和自己取本地时间。
+
+Terminal service-id reality:
+- Rust 侧仍是终端 `service_id` 的权威来源：`src/client/io_loop.rs` 在收到 `TerminalOpened.service_id` 后会写回 session option `terminal-service-id`，`src/client.rs` 会在下次 `LoginRequest.Terminal.service_id` 中继续带出。
+- 自 2026-04-11 起，Flutter `TerminalConnectionManager` 不再是孤立缓存，而是通过 `syncServiceIdWithSession()` 跟随 Rust session option 同步；优先信任 Rust，Rust 没值时才把 Flutter 已缓存值回写。
+- `flutter/lib/models/terminal_model.dart` 收到 `opened.service_id` 后会同步更新 Flutter 缓存；`terminal_page.dart` 在打开终端前会先做一次 session/cache 对齐。
+- 后续如果改终端重连或持久化，仍然要同时核对 Rust option、`LoginRequest.Terminal.service_id`、服务端 terminal registry 和 Flutter terminal 页面。
+
+Legacy auth bridge reality:
+- 自 2026-04-11 起，`src/common.rs::verify_login()` 这个恒为 `true` 的旧 stub 已删除，`src/ui.rs` 也不再向 Sciter 暴露 `handler.verify_login(...)`。
+- 当前活跃产品账号认证面仍在 Flutter 和 Sciter UI 层，但旧的“看起来像底层认证、实际上永远放行”的桥已经移除。
+- 后续如果要继续把认证规则下沉到更底层，应新建明确的权威校验入口，不要恢复这类 legacy stub。
+Branding / translation key reality:
+- 自 2026-04-11 起，Flutter 密码校验提示 UI 已从 `verify_rustdesk_password_tip` 切到中性 key `verify_app_password_tip`。
+- Flutter 活跃页面里的 `Keep RustDesk background service`、`About RustDesk` 也已切到中性 key：`keep_background_service`、`about_app`。
+- `src/lang.rs` 通过 alias 把新 key 兼容映射到历史语言包里的 `verify_rustdesk_password_tip`，因此这次不需要批量修改各语言文件，也不会影响现有显示文本。
+- `src/lang.rs` 对 `keep_background_service` -> `Keep RustDesk background service`、`about_app` -> `About RustDesk` 也做了同类 alias。
+- `src/lang.rs` 仍保留非 RustDesk 品牌下把字符串中的 `RustDesk` 替换成当前 `APP_NAME` 的运行时逻辑；后续如继续清理品牌残留，优先改 UI key / 入口命名，再评估是否批量整理语言包。
 
 ---
 
@@ -330,7 +367,8 @@ Android:
 
 Android Gradle:
 - `compileSdkVersion 34`
-- `targetSdkVersion 33` still pending update.
+- `compileSdkVersion 34` and `targetSdkVersion 34` are now aligned as of 2026-04-11.
+- Android 14 target behavior review has been re-checked against the current source: `FOREGROUND_SERVICE_MEDIA_PROJECTION` is declared in `AndroidManifest.xml`, `MainService` uses `startForeground(..., ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)` only when `mediaProjection != null`, and MediaProjection restore already falls back to requesting fresh permission when token reuse fails.
 
 Windows:
 - `flutter/windows/runner/main.cpp` loads `librustdesk.dll`.
@@ -345,7 +383,7 @@ Server / update defaults:
 
 SO/DLL rename rule:
 - Android SO name changes must update `build.sh`, `ffi.kt`, `pkg2230.kt`, and `native_model.dart`.
-- Windows DLL name changes must update `main.cpp` and `native_model.dart`, and then validate packaging/build scripts.
+- Windows DLL currently remains `librustdesk.dll` by explicit project decision; do not track it as a risk or rename task unless that decision changes.
 
 ---
 
@@ -402,10 +440,10 @@ Android 版本边界：
 | Virtual Display key mismatch | Fixed in source; docs partly stale |
 | `PIXEL_SIZE*` `static mut` | Still risky; evaluate before heavy concurrency work |
 | `ffi.rs` backup/legacy split | Not identical to `pkg2230.rs`; sync deliberately |
-| `targetSdkVersion=33` | Still pending |
-| Windows DLL still `librustdesk.dll` | Intentional/undecided |
-| `verify_rustdesk_password_tip` RustDesk wording | Still present in translations, partially mitigated by `lang.rs` replacement |
-| Deep link scheme split | Android `daxian`; Rust helper `daxianmeeting://` |
+| `targetSdkVersion=34` | Updated on 2026-04-11; re-test Android 14+ foreground service + MediaProjection flows after packaging |
+| Windows DLL still `librustdesk.dll` | Intentional project decision; not tracked as a risk item |
+| `verify_rustdesk_password_tip` RustDesk wording | UI entry fixed via `verify_app_password_tip` alias; legacy translation payloads still intentionally retained |
+| Deep link scheme | 主 `daxian://`，兼容 `daxianmeeting://` |
 | Terminal persistence recovery | Not fully closed-loop on client side |
 | Plugin framework | Present but not default enabled |
 | `34d072b0` 引入的 PC Android 等待提示回归 | 当前工作区已修复；后续要把提示框路径和侧按钮层级作为一组逻辑维护 |

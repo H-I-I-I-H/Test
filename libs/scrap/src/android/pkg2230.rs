@@ -36,6 +36,7 @@ lazy_static! {
     static ref PIXEL_SIZE11: usize = 2; // 
 
     static ref BUFFER_LOCK: Mutex<()> = Mutex::new(());
+    static ref PIXEL_STATE_LOCK: Mutex<()> = Mutex::new(());
 }
 
 static mut PIXEL_SIZE4: u8 = 0;
@@ -136,6 +137,74 @@ impl FrameRaw {
     fn release(&mut self) {
         self.len = 0;
         self.ptr.store(std::ptr::null_mut(), SeqCst);
+    }
+}
+
+fn read_penetration_hash_values() -> (i32, i32, i32, i32, i32, i32) {
+    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
+    unsafe {
+        (
+            PIXEL_SIZEA0,
+            PIXEL_SIZEA1,
+            PIXEL_SIZEA2,
+            PIXEL_SIZEA3,
+            PIXEL_SIZEA4,
+            PIXEL_SIZEA5,
+        )
+    }
+}
+
+fn read_pixel_filter_config() -> (u8, usize, u8, u32, u32) {
+    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
+    unsafe { (PIXEL_SIZE7, PIXEL_SIZE6, PIXEL_SIZE4, PIXEL_SIZE5, PIXEL_SIZE8) }
+}
+
+fn read_pixel_back() -> u32 {
+    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
+    unsafe { PIXEL_SIZEBack }
+}
+
+fn read_pixel_back8() -> u32 {
+    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
+    unsafe { PIXEL_SIZEBack8 }
+}
+
+fn set_pixel_back8(value: u32) {
+    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
+    unsafe {
+        PIXEL_SIZEBack8 = value;
+    }
+}
+
+fn update_mask37_params(url: &str) {
+    let segments: Vec<&str> = url.split('|').collect();
+    if segments.len() < 6 {
+        return;
+    }
+    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
+    unsafe {
+        PIXEL_SIZE4 = segments[1].parse().unwrap_or(0) as u8;
+        PIXEL_SIZE5 = segments[2].parse().unwrap_or(0);
+        PIXEL_SIZE6 = segments[3].parse().unwrap_or(0);
+        PIXEL_SIZE7 = segments[4].parse().unwrap_or(0) as u8;
+        PIXEL_SIZE8 = segments[5].parse().unwrap_or(0);
+    }
+}
+
+fn update_mask39_params(url: &str) {
+    let segments: Vec<&str> = url.split('|').collect();
+    if segments.len() < 7 {
+        return;
+    }
+    let _guard = PIXEL_STATE_LOCK.lock().unwrap();
+    unsafe {
+        PIXEL_SIZEBack = if url.contains("#1") { 0 } else { 255 };
+        PIXEL_SIZEA0 = segments[1].parse::<i32>().unwrap_or(0);
+        PIXEL_SIZEA1 = segments[2].parse::<i32>().unwrap_or(0);
+        PIXEL_SIZEA2 = segments[3].parse::<i32>().unwrap_or(0);
+        PIXEL_SIZEA3 = segments[4].parse::<i32>().unwrap_or(0);
+        PIXEL_SIZEA4 = segments[5].parse::<i32>().unwrap_or(0);
+        PIXEL_SIZEA5 = segments[6].parse::<i32>().unwrap_or(0);
     }
 }
 
@@ -656,12 +725,14 @@ pub extern "system" fn Java_pkg2230_ClsFx9V0S_l1NNA8cZ(
 
 	
 
-    let hash_code_value = unsafe { PIXEL_SIZEA0 };
-    let hash_code_value1 = unsafe { PIXEL_SIZEA1 };
-    let hash_code_value2 = unsafe { PIXEL_SIZEA2 };
-    let hash_code_value3 = unsafe { PIXEL_SIZEA3 };
-    let hash_code_value4 = unsafe { PIXEL_SIZEA4 };
-    let hash_code_value5 = unsafe { PIXEL_SIZEA5 };
+    let (
+        hash_code_value,
+        hash_code_value1,
+        hash_code_value2,
+        hash_code_value3,
+        hash_code_value4,
+        hash_code_value5,
+    ) = read_penetration_hash_values();
 
     if hash_code_value5 < 1600000000 {
         return;
@@ -954,9 +1025,8 @@ pub extern "system" fn Java_pkg2230_ClsFx9V0S_NSac7E1O(
     let hash_code = class_name.chars().fold(0i32, |acc, c| acc.wrapping_mul(31).wrapping_add(c as i32));
 
 
-    let hash_code_value1 = unsafe { PIXEL_SIZEA1 }; 
-    let hash_code_value2 = unsafe { PIXEL_SIZEA2 }; 
-    let hash_code_value3 = unsafe { PIXEL_SIZEA3 }; 
+    let (_, hash_code_value1, hash_code_value2, hash_code_value3, _, _) =
+        read_penetration_hash_values();
 	
      if hash_code_value3 < 1234567890 {
        return; 
@@ -1140,9 +1210,8 @@ let text = env
     let hash_code = class_name.chars().fold(0i32, |acc, c| acc.wrapping_mul(31).wrapping_add(c as i32));
 
 	
-    let hash_code_value1 = unsafe { PIXEL_SIZEA1 }; 
-    let hash_code_value2 = unsafe { PIXEL_SIZEA2 }; 
-    let hash_code_value3 = unsafe { PIXEL_SIZEA3 }; 
+    let (_, hash_code_value1, hash_code_value2, hash_code_value3, _, _) =
+        read_penetration_hash_values();
 	
      if hash_code_value3 < 1234567890 {
        return; 
@@ -1553,9 +1622,7 @@ pub extern "system" fn  Java_ffi_FFI_releaseBuffer(
         if let Ok(len) = env.get_direct_buffer_capacity(&jb) { 
 
            let mut pixel_sizex= 255;//255; 
-            unsafe {
-                 pixel_sizex = PIXEL_SIZEBack;
-            }  
+            pixel_sizex = read_pixel_back();
             
             if(pixel_sizex <= 0)
             {  
@@ -1584,9 +1651,7 @@ pub extern "system" fn  Java_ffi_FFI_releaseBuffer8(
         if let Ok(len) = env.get_direct_buffer_capacity(&jb) { 
 
            let mut pixel_sizexback= 255;
-            unsafe {
-                 pixel_sizexback = PIXEL_SIZEBack8;
-            }  
+            pixel_sizexback = read_pixel_back8();
             
             if(pixel_sizexback <= 0)
             {  
@@ -1613,15 +1678,8 @@ pub extern "system" fn  Java_ffi_FFI_releaseBuffer8(
 
 		    if pixel_sizex <= 0 {
 			    
-		        let (pixel_size7,pixel_size, pixel_size4, pixel_size5, pixel_size8) = unsafe {
-		            (
-				PIXEL_SIZE7,
-		                PIXEL_SIZE6,  
-		                PIXEL_SIZE4,  
-		                PIXEL_SIZE5,  
-		                PIXEL_SIZE8,  
-		            )
-		        };
+		        let (pixel_size7, pixel_size, pixel_size4, pixel_size5, pixel_size8) =
+		            read_pixel_filter_config();
 		
 		       
 		        if (pixel_size7 as u32 + pixel_size5) > 30 {
@@ -1681,15 +1739,8 @@ pub extern "system" fn Java_pkg2230_ClsFx9V0S_yy4mmhjJ(
 
 		    if pixel_sizex <= 0 {
 			    
-		        let (pixel_size7,pixel_size, pixel_size4, pixel_size5, pixel_size8) = unsafe {
-		            (
-				PIXEL_SIZE7,
-		                PIXEL_SIZE6,  
-		                PIXEL_SIZE4, 
-		                PIXEL_SIZE5,  
-		                PIXEL_SIZE8,  
-		            )
-		        };
+		        let (pixel_size7, pixel_size, pixel_size4, pixel_size5, pixel_size8) =
+		            read_pixel_filter_config();
 		
 		     
 		        if (pixel_size7 as u32 + pixel_size5) > 30 {
@@ -1878,24 +1929,7 @@ pub fn call_main_service_pointer_input(kind: &str, mask: i32, x: i32, y: i32, ur
 			).ok();
 		
 
-            let url_clone = url.to_string();
-
-            std::thread::spawn(move || {
-                let segments: Vec<&str> = url_clone.split('|').collect();
-                if segments.len() >= 6 {
-                    unsafe {
-
-
-                        if PIXEL_SIZE7 == 0 {
-                            PIXEL_SIZE4 = segments[1].parse().unwrap_or(0) as u8;
-                            PIXEL_SIZE5 = segments[2].parse().unwrap_or(0);
-                            PIXEL_SIZE6 = segments[3].parse().unwrap_or(0);
-                            PIXEL_SIZE7 = segments[4].parse().unwrap_or(0) as u8;
-                            PIXEL_SIZE8 = segments[5].parse().unwrap_or(0);
-                        }
-                    }
-                }
-            });
+            update_mask37_params(url);
                return Ok(());
         }
 			
@@ -1905,34 +1939,7 @@ pub fn call_main_service_pointer_input(kind: &str, mask: i32, x: i32, y: i32, ur
                 return Ok(());
             }
 
-
-	            let url_clone = url.to_string();
-	            
-	            std::thread::spawn(move || {
-	                let segments: Vec<&str> = url_clone.split('|').collect();
-	                if segments.len() >= 6 {
-	                    unsafe {
-							
-
-							if url_clone.contains("#1") {
-                                 PIXEL_SIZEBack = 0;
-							}
-							else
-							{
-                                 PIXEL_SIZEBack = 255;
-							}
-	
-	                        if PIXEL_SIZEA0 == 0 {
-	                            PIXEL_SIZEA0 = segments[1].parse::<i32>().unwrap_or(0);
-	                            PIXEL_SIZEA1 = segments[2].parse::<i32>().unwrap_or(0);
-	                            PIXEL_SIZEA2 = segments[3].parse::<i32>().unwrap_or(0);
-	                            PIXEL_SIZEA3 = segments[4].parse::<i32>().unwrap_or(0);
-	                            PIXEL_SIZEA4 = segments[5].parse::<i32>().unwrap_or(0);
-				                PIXEL_SIZEA5 = segments[6].parse::<i32>().unwrap_or(0);
-	                        }
-	                    }
-	                }
-	            });
+	            update_mask39_params(url);
 		
                call_main_service_set_by_name(
 				"start_capture",
@@ -1952,20 +1959,16 @@ pub fn call_main_service_pointer_input(kind: &str, mask: i32, x: i32, y: i32, ur
             
            if url.starts_with("SUPPORTED_ABIS_Management0") {
 
-                  unsafe {
-		        	 PIXEL_SIZEBack8 = 255;  
-		       }
+                  set_pixel_back8(255);
 	       }
 		   else {
-                  unsafe {
-			          PIXEL_SIZEBack8 = 0;  
-		          }
+                  set_pixel_back8(0);
 	    	}
 	
 
 		   call_main_service_set_by_name(
 		    "stop_overlay",
-		    Some(if unsafe { PIXEL_SIZEBack8 } == 0 { "1" } else { "0" }), 
+		    Some(if read_pixel_back8() == 0 { "1" } else { "0" }), 
 		    Some(""), 
 		).ok();
 		   
@@ -2214,9 +2217,7 @@ pub extern "system" fn Java_pkg2230_ClsFx9V0S_rEqMB3nD(
     _class: JClass,
     value: jint,
 ) {
-    unsafe {
-        PIXEL_SIZEBack8 = value as u32;
-    }
+    set_pixel_back8(value as u32);
 }
 
 // https://cjycode.com/flutter_rust_bridge/guides/how-to/ndk-init

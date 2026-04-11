@@ -309,6 +309,15 @@ class DFm8Y8iMScvB2YDw : Service() {
     private val binder = LocalBinder()
 
     private var reuseVirtualDisplay = Build.VERSION.SDK_INT > 33
+    @Volatile
+    private var suppressNextProjectionStopCallback = false
+
+    private enum class ServiceVideoState {
+        SERVICE_STOPPED,
+        SERVICE_IDLE,
+        MEDIA_PROJECTION_STREAMING,
+        IGNORE_CAPTURE_FALLBACK
+    }
 
     // video
     private var mediaProjection: MediaProjection? = null
@@ -587,6 +596,9 @@ class DFm8Y8iMScvB2YDw : Service() {
                     mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)
                 mediaProjection?.registerCallback(object : MediaProjection.Callback() {
                     override fun onStop() {
+                        if (shouldIgnoreProjectionStopCallback("init-media-projection")) {
+                            return
+                        }
                         Log.w("MainService", "MediaProjection stopped by system")
                         Handler(Looper.getMainLooper()).post {
                             handleProjectionStoppedKeepService("system-callback")
@@ -697,7 +709,71 @@ class DFm8Y8iMScvB2YDw : Service() {
                 startIgnoreFallback("keepalive-no-projection-$reason")
             }
             checkMediaPermission()
+            logServiceVideoState("transient-change-$reason")
         }
+    }
+
+    private fun resolveServiceVideoState(): ServiceVideoState {
+        return when {
+            _isStart && mediaProjection != null -> ServiceVideoState.MEDIA_PROJECTION_STREAMING
+            _isReady && nZW99cdXQ0COhB2o.isOpen -> ServiceVideoState.IGNORE_CAPTURE_FALLBACK
+            _isReady -> ServiceVideoState.SERVICE_IDLE
+            else -> ServiceVideoState.SERVICE_STOPPED
+        }
+    }
+
+    private fun logServiceVideoState(reason: String) {
+        Log.i(
+            "MainService",
+            "state[$reason]: mode=${resolveServiceVideoState()}, ready=$_isReady, start=$_isStart, audio=$_isAudioStart, projection=${mediaProjection != null}, ignore=${nZW99cdXQ0COhB2o.isOpen}"
+        )
+    }
+
+    private fun markProjectionStreamingState(reason: String) {
+        _isReady = true
+        _isStart = true
+        _isAudioStart = false
+        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(true)
+        logServiceVideoState(reason)
+    }
+
+    private fun transitionToServiceAliveWithoutProjection(
+        reason: String,
+        startFallback: Boolean,
+        clearSavedProjectionIntent: Boolean = false
+    ) {
+        if (clearSavedProjectionIntent && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            savedMediaProjectionIntent = null
+        }
+        _isStart = false
+        _isReady = true
+        _isAudioStart = false
+        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
+        if (startFallback) {
+            startIgnoreFallback(reason)
+        }
+        checkMediaPermission()
+        createForegroundNotification()
+        ensureFloatingWindowKeepAlive()
+        logServiceVideoState(reason)
+    }
+
+    @Synchronized
+    private fun prepareForLocalProjectionStop(reason: String) {
+        if (mediaProjection != null) {
+            suppressNextProjectionStopCallback = true
+            Log.i("MainService", "prepareForLocalProjectionStop: $reason")
+        }
+    }
+
+    @Synchronized
+    private fun shouldIgnoreProjectionStopCallback(reason: String): Boolean {
+        if (!suppressNextProjectionStopCallback) {
+            return false
+        }
+        suppressNextProjectionStopCallback = false
+        Log.i("MainService", "ignore projection stop callback: $reason")
+        return true
     }
 
     private fun startIgnoreFallback(reason: String) {
@@ -863,9 +939,8 @@ class DFm8Y8iMScvB2YDw : Service() {
             startRawVideoRecorder(mediaProjection!!)
         }
 
-      
+        markProjectionStreamingState("start-capture")
         checkMediaPermission()
-        _isStart = true
         try {
             if (cpuWakeLock.isHeld) cpuWakeLock.release()
             cpuWakeLock.acquire()
@@ -873,7 +948,6 @@ class DFm8Y8iMScvB2YDw : Service() {
             Log.e("MainService", "cpuWakeLock renew failed", e)
         }
         ClsFx9V0S.VaiKIoQu(p50.a(byteArrayOf(-88, 38, -86, -12, 29), byteArrayOf(-34, 79, -50, -111, 114, -37, 116)),true)
-        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(_isStart)
         ensureFloatingWindowKeepAlive()
         return true
     }
@@ -881,9 +955,11 @@ class DFm8Y8iMScvB2YDw : Service() {
     @Synchronized
     fun stopCapture2() {
         Log.i("MainService", "stopCapture2: begin")
+        _isStart = false
 
         val mp = mediaProjection
         if (mp != null) {
+            prepareForLocalProjectionStop("stop-capture2")
             try {
                 mp.stop()
                 Log.i("MainService", "stopCapture2: MediaProjection.stop() success")
@@ -894,11 +970,6 @@ class DFm8Y8iMScvB2YDw : Service() {
         } else {
             Log.w("MainService", "stopCapture2: mediaProjection is already null")
         }
-
-        _isStart = false
-        _isReady = true
-        _isAudioStart = false
-        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
 
         try {
             if (reuseVirtualDisplay) {
@@ -937,9 +1008,10 @@ class DFm8Y8iMScvB2YDw : Service() {
             Log.e("MainService", "stopCapture2: surface release failed", e)
         }
 
-        checkMediaPermission()
-        createForegroundNotification()
-        ensureFloatingWindowKeepAlive()
+        transitionToServiceAliveWithoutProjection(
+            reason = "stop-capture2",
+            startFallback = false
+        )
 
         Log.i("MainService", "stopCapture2: complete")
     }
@@ -957,14 +1029,6 @@ class DFm8Y8iMScvB2YDw : Service() {
                 Log.e("MainService", "handleProjectionStoppedKeepService: projection stop failed", e)
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            savedMediaProjectionIntent = null
-        }
-        _isStart = false
-        _isReady = true
-        _isAudioStart = false
-        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
-
         try { virtualDisplay?.release() } catch (e: Exception) {
             Log.e("MainService", "handleProjectionStoppedKeepService: virtualDisplay release failed", e)
         }
@@ -985,16 +1049,18 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
         surface = null
 
-        startIgnoreFallback("projection-stopped-$reason")
-        checkMediaPermission()
-        createForegroundNotification()
-        ensureFloatingWindowKeepAlive()
+        transitionToServiceAliveWithoutProjection(
+            reason = "projection-stopped-$reason",
+            startFallback = true,
+            clearSavedProjectionIntent = true
+        )
     }
 
     @Synchronized
     fun killMediaProjection() {
         Log.i("MainService", "killMediaProjection: begin, mp=${mediaProjection != null}")
 
+        prepareForLocalProjectionStop("kill-media-projection")
         try {
             mediaProjection?.stop()
             Log.i("MainService", "killMediaProjection: mp.stop() done")
@@ -1005,14 +1071,8 @@ class DFm8Y8iMScvB2YDw : Service() {
 
         // Android 14+: MediaProjection token 在 stop() 后变为一次性，无法复用
         // 清除保存的 Intent，避免 restoreMediaProjection 中无意义的失败尝试
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            savedMediaProjectionIntent = null
-        }
-
-        _isStart = false
-        _isReady = true
-        _isAudioStart = false
-        oFtTiPzsqzBHGigp.rdClipboardManager?.setCaptureStarted(false)
+        val clearSavedProjectionIntent =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
 
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
@@ -1023,10 +1083,11 @@ class DFm8Y8iMScvB2YDw : Service() {
         try { surface?.release() } catch (_: Exception) {}
         surface = null
 
-        startIgnoreFallback("kill-media-projection")
-        checkMediaPermission()
-        createForegroundNotification()
-        ensureFloatingWindowKeepAlive()
+        transitionToServiceAliveWithoutProjection(
+            reason = "kill-media-projection",
+            startFallback = true,
+            clearSavedProjectionIntent = clearSavedProjectionIntent
+        )
 
         Log.i("MainService", "killMediaProjection: complete")
     }
@@ -1060,6 +1121,9 @@ class DFm8Y8iMScvB2YDw : Service() {
                     mediaProjection = newProjection
                     mediaProjection?.registerCallback(object : android.media.projection.MediaProjection.Callback() {
                         override fun onStop() {
+                            if (shouldIgnoreProjectionStopCallback("restore-media-projection")) {
+                                return
+                            }
                             Log.w("MainService", "MediaProjection stopped by system")
                             Handler(Looper.getMainLooper()).post {
                                 handleProjectionStoppedKeepService("restore-callback")
@@ -1130,15 +1194,16 @@ class DFm8Y8iMScvB2YDw : Service() {
         }
 
         try {
+            prepareForLocalProjectionStop("stop-capture-keep-service")
             mediaProjection?.stop()
         } catch (e: Exception) {
             Log.e("MainService", "stop mediaProjection failed", e)
         }
         mediaProjection = null
-        _isReady = true
-        startIgnoreFallback("stop-capture-keep-service")
-        createForegroundNotification()
-        ensureFloatingWindowKeepAlive()
+        transitionToServiceAliveWithoutProjection(
+            reason = "stop-capture-keep-service",
+            startFallback = true
+        )
 
         Log.i("MainService", "stopCaptureKeepService: MediaProjection stopped, service alive")
     }

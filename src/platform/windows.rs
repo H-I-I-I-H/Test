@@ -1287,6 +1287,8 @@ fn get_after_install(
 ) -> String {
     let app_name = crate::get_app_name();
     let ext = app_name.to_lowercase();
+    let uri_scheme = crate::get_uri_scheme();
+    let legacy_uri_scheme = crate::get_legacy_uri_scheme();
 
     // reg delete HKEY_CURRENT_USER\Software\Classes for
     // https://github.com/rustdesk/rustdesk/commit/f4bdfb6936ae4804fc8ab1cf560db192622ad01a
@@ -1327,12 +1329,18 @@ fn get_after_install(
     reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open /f
     reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open\\command /f
     reg add HKEY_CLASSES_ROOT\\.{ext}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{exe}\\\" --play \\\"%%1\\\"\"
-    reg add HKEY_CLASSES_ROOT\\{ext} /f
-    reg add HKEY_CLASSES_ROOT\\{ext} /f /v \"URL Protocol\" /t REG_SZ /d \"\"
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell /f
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open /f
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f
-    reg add HKEY_CLASSES_ROOT\\{ext}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{exe}\\\" \\\"%%1\\\"\"
+    reg add HKEY_CLASSES_ROOT\\{uri_scheme} /f
+    reg add HKEY_CLASSES_ROOT\\{uri_scheme} /f /v \"URL Protocol\" /t REG_SZ /d \"\"
+    reg add HKEY_CLASSES_ROOT\\{uri_scheme}\\shell /f
+    reg add HKEY_CLASSES_ROOT\\{uri_scheme}\\shell\\open /f
+    reg add HKEY_CLASSES_ROOT\\{uri_scheme}\\shell\\open\\command /f
+    reg add HKEY_CLASSES_ROOT\\{uri_scheme}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{exe}\\\" \\\"%%1\\\"\"
+    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme} /f
+    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme} /f /v \"URL Protocol\" /t REG_SZ /d \"\"
+    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme}\\shell /f
+    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme}\\shell\\open /f
+    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme}\\shell\\open\\command /f
+    reg add HKEY_CLASSES_ROOT\\{legacy_uri_scheme}\\shell\\open\\command /f /ve /t REG_SZ /d \"\\\"{exe}\\\" \\\"%%1\\\"\"
     netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=out action=allow program=\"{exe}\" enable=yes
     netsh advfirewall firewall add rule name=\"{app_name} Service\" dir=in action=allow program=\"{exe}\" enable=yes
     {create_service}
@@ -1542,6 +1550,8 @@ pub fn run_before_uninstall() -> ResultType<()> {
 fn get_before_uninstall(kill_self: bool) -> String {
     let app_name = crate::get_app_name();
     let ext = app_name.to_lowercase();
+    let uri_scheme = crate::get_uri_scheme();
+    let legacy_uri_scheme = crate::get_legacy_uri_scheme();
     let filter = if kill_self {
         "".to_string()
     } else {
@@ -1555,7 +1565,8 @@ fn get_before_uninstall(kill_self: bool) -> String {
     taskkill /F /IM {broker_exe}
     taskkill /F /IM {app_name}.exe{filter}
     reg delete HKEY_CLASSES_ROOT\\.{ext} /f
-    reg delete HKEY_CLASSES_ROOT\\{ext} /f
+    reg delete HKEY_CLASSES_ROOT\\{uri_scheme} /f
+    reg delete HKEY_CLASSES_ROOT\\{legacy_uri_scheme} /f
     netsh advfirewall firewall delete rule name=\"{app_name} Service\"
     ",
         broker_exe = WIN_TOPMOST_INJECTED_PROCESS_EXE,

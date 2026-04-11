@@ -2265,17 +2265,20 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
   if (cmdArgs != null && cmdArgs.isNotEmpty) {
     args = cmdArgs;
     // rustdesk <uri link>
-    if (args[0].startsWith(bind.mainUriPrefixSync())) {
+    if (isSupportedUriLink(args[0])) {
       final uri = Uri.tryParse(args[0]);
       if (uri != null) {
         args = urlLinkToCmdArgs(uri);
       }
     }
   } else if (uri != null) {
+    if (!isSupportedUriScheme(uri.scheme)) {
+      return false;
+    }
     args = urlLinkToCmdArgs(uri);
   } else if (uriString != null) {
     final uri = Uri.tryParse(uriString);
-    if (uri != null) {
+    if (uri != null && isSupportedUriScheme(uri.scheme)) {
       args = urlLinkToCmdArgs(uri);
     }
   }
@@ -2389,6 +2392,31 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
   return false;
 }
 
+List<String> getSupportedUriSchemes() {
+  final schemes = <String>{};
+  final canonical = Uri.tryParse(bind.mainUriPrefixSync())?.scheme;
+  if (canonical != null && canonical.isNotEmpty) {
+    schemes.add(canonical.toLowerCase());
+  }
+  schemes.add('daxianmeeting');
+  return schemes.toList(growable: false);
+}
+
+bool isSupportedUriScheme(String? scheme) {
+  if (scheme == null || scheme.isEmpty) {
+    return false;
+  }
+  return getSupportedUriSchemes().contains(scheme.toLowerCase());
+}
+
+bool isSupportedUriLink(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) {
+    return false;
+  }
+  return isSupportedUriScheme(uri.scheme);
+}
+
 List<String>? urlLinkToCmdArgs(Uri uri) {
   String? command;
   String? id;
@@ -2435,9 +2463,9 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
   } else if (uri.authority.length > 2 &&
       (uri.path.length <= 1 ||
           (uri.path == '/r' || uri.path.startsWith('/r@')))) {
-    // rustdesk://<connect-id>
-    // rustdesk://<connect-id>/r
-    // rustdesk://<connect-id>/r@<server>
+    // daxian://<connect-id>
+    // daxian://<connect-id>/r
+    // daxian://<connect-id>/r@<server>
     command = '--connect';
     id = uri.authority;
     if (uri.path.length > 1) {

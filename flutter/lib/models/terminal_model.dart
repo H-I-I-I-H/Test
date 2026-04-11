@@ -6,6 +6,7 @@ import 'package:xterm/xterm.dart';
 
 import 'model.dart';
 import 'platform_model.dart';
+import '../desktop/pages/terminal_connection_manager.dart';
 
 class TerminalModel with ChangeNotifier {
   final String id; // peer id
@@ -186,7 +187,11 @@ class TerminalModel with ChangeNotifier {
     if (success) {
       _terminalOpened = true;
 
-      // Service ID is now saved on the Rust side in handle_terminal_response
+      if (serviceId != null && serviceId.isNotEmpty) {
+        TerminalConnectionManager.setServiceId(id, serviceId);
+      } else {
+        TerminalConnectionManager.syncServiceIdWithSession(peerId: id, ffi: parent);
+      }
 
       // Process any buffered input
       _processBufferedInputAsync().then((_) {

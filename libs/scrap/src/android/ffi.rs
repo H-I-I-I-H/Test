@@ -1,3 +1,15 @@
+// Legacy Android JNI shim/reference.
+//
+// Current source-truth live path:
+// - Rust: `libs/scrap/src/android/pkg2230.rs`
+// - Kotlin: `flutter/android/app/src/main/kotlin/pkg2230.kt`
+//
+// Reality checked on 2026-04-11:
+// - `libs/scrap/src/android/mod.rs` only exports `pkg2230`
+// - Android app code imports `pkg2230.ClsFx9V0S`, not `ffi.FFI`
+//
+// Keep this file only for deliberate compatibility/reference work.
+// Do not blindly mirror changes from `pkg2230.rs` into this file.
 use jni::objects::JByteBuffer;
 use jni::objects::JString;
 use jni::objects::JValue;

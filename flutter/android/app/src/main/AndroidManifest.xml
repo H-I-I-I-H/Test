@@ -67,6 +67,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="daxian" />
+                <data android:scheme="daxianmeeting" />
             </intent-filter>
         </activity>
 

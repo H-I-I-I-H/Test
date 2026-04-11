@@ -1,6 +1,6 @@
 # Android 锁屏 / 断网 / 关共享 / 开共享 状态机
 
-> 最后复核：2026-04-09  
+> 最后复核：2026-04-11  
 > 目的：把 Android 端服务、画面流、PC 重连之间的真实状态机固定下来，后续修改必须先对照这份文档。
 
 ---
@@ -56,6 +56,7 @@
 | `_isReady` | `DFm8Y8iMScvB2YDw.kt` | 服务是否对外可用 |
 | `_isStart` | `DFm8Y8iMScvB2YDw.kt` | 是否处于共享视频流状态 |
 | `mediaProjection` | `DFm8Y8iMScvB2YDw.kt` | 当前录屏授权对象 |
+| `ServiceVideoState` | `DFm8Y8iMScvB2YDw.kt` | MainService 内部统一判断当前是服务待命、MediaProjection 投屏中还是无视截屏备用流中 |
 | `shouldRun` | `common.kt` / `nZW99cdXQ0COhB2o.kt` | 无视截图循环是否运行 |
 | `SKL` | `common.kt` / `nZW99cdXQ0COhB2o.kt` | 穿透模式是否运行 |
 | `PIXEL_SIZEBack8` | `pkg2230.rs` / `ffi.rs` | 无视帧是否允许上送，`0` 允许，`255` 丢弃 |
@@ -106,6 +107,32 @@ stateDiagram-v2
 ---
 
 ## 5. 事件 -> 转移规则
+
+### 5.0 MainService 统一状态入口
+
+自 2026-04-11 起，下面几条路径不应再各自手写一套 `_isReady/_isStart` 状态迁移：
+
+1. `startCapture()`
+2. `handleProjectionStoppedKeepService()`
+3. `killMediaProjection()`
+4. `stopCaptureKeepService()`
+5. `stopCapture2()`
+6. `keepServiceStateAfterNetworkOrScreenChange()`
+
+当前源码里的统一入口是：
+
+- `markProjectionStreamingState()`
+  - 用于进入 `A2 服务存活-视频流中`
+- `transitionToServiceAliveWithoutProjection()`
+  - 用于从 `A2` 退回 `A1/A3`
+  - 是否进入 `A3` 取决于是否同时启动 `startIgnoreFallback(...)`
+- `logServiceVideoState()`
+  - 用于排查锁屏、断网、共享切换后 MainService 的真实状态
+- `prepareForLocalProjectionStop()` / `shouldIgnoreProjectionStopCallback()`
+  - 用于区分“本地主动 stop”与“系统被动 onStop”
+  - 避免 `killMediaProjection()`、`stopCaptureKeepService()` 之类的主动停投屏路径又被系统 callback 重复打一遍状态迁移
+
+后续如果改上述事件链，优先复用这几个入口，避免把“服务状态”和“画面状态”重新绑死。
 
 ### 5.1 开共享
 
@@ -298,4 +325,3 @@ PC 当前策略：
 - **不因为我们自己的代码逻辑把服务停掉**
 - **不因为等待画面 UI 把恢复链路卡死**
 - **在系统释放视频流时尽可能退到截屏流**
-

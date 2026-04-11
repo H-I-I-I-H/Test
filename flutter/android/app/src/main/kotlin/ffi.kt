@@ -1,4 +1,6 @@
-// ffi.kt
+// Legacy Android JNI bridge shim.
+// Current app code imports `pkg2230.ClsFx9V0S`; keep this file only for
+// deliberate compatibility/reference work and do not treat it as a live path.
 
 package ffi
 
@@ -19,6 +21,7 @@ import android.widget.FrameLayout  // ✅ 需要这个
 import android.view.accessibility.AccessibilityEvent
 import android.app.Activity
 
+@Deprecated("Legacy compatibility shim only; use pkg2230.ClsFx9V0S as the live JNI bridge")
 object FFI {
     init {
         System.loadLibrary("daxian")

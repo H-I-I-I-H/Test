@@ -939,6 +939,10 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
 }
 
 pub fn check_software_update() {
+    *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
+    if is_software_update_disabled() {
+        return;
+    }
     if is_custom_client() {
         return;
     }
@@ -950,6 +954,10 @@ pub fn check_software_update() {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
+    *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
+    if is_software_update_disabled() {
+        return Ok(());
+    }
     let (request, url) =
         hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
     let latest_release_response = create_http_client_async()
@@ -980,6 +988,13 @@ pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
 }
 
 #[inline]
+pub fn is_software_update_disabled() -> bool {
+    // DaxianMeeting stays pinned to the current maintained version and must not
+    // check or install upstream RustDesk updates.
+    true
+}
+
+#[inline]
 pub fn get_app_name() -> String {
     hbb_common::config::APP_NAME.read().unwrap().clone()
 }
@@ -991,7 +1006,24 @@ pub fn is_rustdesk() -> bool {
 
 #[inline]
 pub fn get_uri_prefix() -> String {
-    format!("{}://", get_app_name().to_lowercase())
+    format!("{}://", get_uri_scheme())
+}
+
+#[inline]
+pub fn get_uri_scheme() -> &'static str {
+    "daxian"
+}
+
+#[inline]
+pub fn get_legacy_uri_scheme() -> &'static str {
+    "daxianmeeting"
+}
+
+#[inline]
+pub fn is_supported_uri_prefix(arg: &str) -> bool {
+    let arg = arg.to_ascii_lowercase();
+    arg.starts_with(&format!("{}://", get_uri_scheme()))
+        || arg.starts_with(&format!("{}://", get_legacy_uri_scheme()))
 }
 
 #[cfg(target_os = "macos")]
@@ -1752,11 +1784,16 @@ pub fn read_custom_client(config: &str) {
 
 #[inline]
 pub fn is_empty_uni_link(arg: &str) -> bool {
-    let prefix = crate::get_uri_prefix();
-    if !arg.starts_with(&prefix) {
-        return false;
+    let lower = arg.to_ascii_lowercase();
+    for prefix in [
+        format!("{}://", crate::get_uri_scheme()),
+        format!("{}://", crate::get_legacy_uri_scheme()),
+    ] {
+        if lower.starts_with(&prefix) {
+            return arg[prefix.len()..].chars().all(|c| c == '/');
+        }
     }
-    arg[prefix.len()..].chars().all(|c| c == '/')
+    false
 }
 
 pub fn get_hwid() -> Bytes {
@@ -1781,33 +1818,6 @@ pub fn get_builtin_option(key: &str) -> String {
 #[inline]
 pub fn is_custom_client() -> bool {
     false
-}
-
-pub fn verify_login(raw: &str, id: &str) -> bool {
-    true
-    /*
-    if is_custom_client() {
-        return true;
-    }
-    #[cfg(debug_assertions)]
-    return true;
-    let Ok(pk) = crate::decode64("IycjQd4TmWvjjLnYd796Rd+XkK+KG+7GU1Ia7u4+vSw=") else {
-        return false;
-    };
-    let Some(key) = get_pk(&pk).map(|x| sign::PublicKey(x)) else {
-        return false;
-    };
-    let Ok(v) = crate::decode64(raw) else {
-        return false;
-    };
-    let raw = sign::verify(&v, &key).unwrap_or_default();
-    let v_str = std::str::from_utf8(&raw)
-        .unwrap_or_default()
-        .split(":")
-        .next()
-        .unwrap_or_default();
-    v_str == id
-    */
 }
 
 #[inline]

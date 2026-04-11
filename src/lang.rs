@@ -173,6 +173,7 @@ pub fn translate_locale(name: String, locale: &str) -> String {
         _ => en::T.deref(),
     };
     let (name, placeholder_value) = extract_placeholder(&name);
+    let name = alias_translation_key(name);
     let replace = |s: &&str| {
         let mut s = s.to_string();
         if let Some(value) = placeholder_value.as_ref() {
@@ -201,6 +202,17 @@ pub fn translate_locale(name: String, locale: &str) -> String {
         }
     }
     replace(&name.as_str())
+}
+
+fn alias_translation_key(name: String) -> String {
+    match name.as_str() {
+        // Keep legacy translation packs working while new UI code stops
+        // referencing the old product-specific key directly.
+        "verify_app_password_tip" => "verify_rustdesk_password_tip".to_owned(),
+        "keep_background_service" => "Keep RustDesk background service".to_owned(),
+        "about_app" => "About RustDesk".to_owned(),
+        _ => name,
+    }
 }
 
 // Matching pattern is {}

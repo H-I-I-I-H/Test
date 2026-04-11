@@ -1,4 +1,5 @@
-// ffi.kt
+// Live Android JNI bridge.
+// Source-truth path pairs with `libs/scrap/src/android/pkg2230.rs`.
 
 package pkg2230
 
