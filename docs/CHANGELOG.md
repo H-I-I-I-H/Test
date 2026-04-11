@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-04-11] 过期文档清理 / 风险基线固化
+
+### 删除不可信文档并收口入口
+- 删除已确认过期且会误导后续判断的 `DOCS.md`、`CLAUDE.md`、`terminal.md`。
+- `docs/PROJECT_INDEX.md` 改为只保留当前可信阅读链：`PROJECT_MEMORY`、`ANDROID_STATE_MACHINE`、`CHANGELOG`、`KNOWN_BUGS`。
+- `docs/PROJECT_MEMORY.md` 同步移除已删除文档的信任入口，并把“已删除原因”写入长期记忆，避免后续会话再次引用旧结论。
+- `docs/KNOWN_BUGS.md` 修正文档里关于 `ffi.rs` 的过期说法，并固化接管阶段新增待处理风险：自动更新仍走 RustDesk 官方接口、deep link split、Rust `verify_login()` 直接放行、`PIXEL_SIZE*` 竞态与一次性初始化、到期展示口径不一致、终端 `service_id` Flutter 缓存未接线。
+- 本轮未改业务代码，仅清理文档入口并固化真实风险基线。
+- 涉及文件：`docs/PROJECT_INDEX.md`, `docs/PROJECT_MEMORY.md`, `docs/KNOWN_BUGS.md`, `docs/CHANGELOG.md`, `DOCS.md`, `CLAUDE.md`, `terminal.md`
+
+## [2026-04-11] 接管核验 / 文档校准
+
+### 以源码为准的接管同步
+- 重新按源码核对 Android 保活、锁屏/断网/开关共享状态机、PC 等待首帧与重连、Flutter/Rust/Kotlin/JNI 调用链、终端持久化、服务器地址与更新逻辑。
+- `docs/PROJECT_MEMORY.md` 新增/修正：deep link split 的 Flutter 实际判定路径、终端 `service_id` 的 Rust 写回路径、默认 rendezvous/API 地址、updater 仍走 RustDesk 官方版本检查接口的真实实现。
+- `DOCS.md` 顶部明确降级为历史手册，并补充已核验过期点：Virtual Display key mismatch 已修复、`pkg2230.rs` / `ffi.rs` 非同副本、终端 Flutter service id 缓存未接线、自动更新仍走 `https://api.rustdesk.com/version/latest`。
+- 本轮未改业务代码，仅同步文档基线，供后续修改继续以源码为准。
+- 涉及文件：`docs/PROJECT_MEMORY.md`, `DOCS.md`, `docs/CHANGELOG.md`
+
 ## [2026-04-08] PC Android 重连 / 侧按钮 / 保活后续修复
 
 ### 重连侧按钮去重、截屏备用流、锁屏保活

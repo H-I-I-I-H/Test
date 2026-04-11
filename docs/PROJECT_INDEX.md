@@ -6,18 +6,16 @@
 
 1. `docs/PROJECT_MEMORY.md`
    - 当前事实表、关键链路、易错点。
-2. `docs/CHANGELOG.md`
+2. `docs/ANDROID_STATE_MACHINE.md`
+   - Android 服务保活、锁屏/断网、共享开关、等待首帧的统一状态机。
+3. `docs/CHANGELOG.md`
    - 已落地修改，尤其 v5.2.1 和 hotfix。
-3. `docs/KNOWN_BUGS.md`
-   - 当前 bug 状态和已修复项。
-4. `DOCS.md`
-   - 大型技术手册，只作为背景资料；使用前必须回源码验证。
-5. `terminal.md`
-   - 终端系统设计资料；部分实现状态已变化，需与源码交叉验证。
+4. `docs/KNOWN_BUGS.md`
+   - 当前 bug 状态、接管期新增高风险点、已修复项。
 
 ## 可信度规则
 
-源码 > `docs/PROJECT_MEMORY.md` > `docs/CHANGELOG.md` / `docs/KNOWN_BUGS.md` > `DOCS.md` / `CLAUDE.md` / `terminal.md`。
+源码 > `docs/PROJECT_MEMORY.md` > `docs/ANDROID_STATE_MACHINE.md` / `docs/CHANGELOG.md` / `docs/KNOWN_BUGS.md`。
 
 若文档互相冲突：
 - 先 `rg` 查源码。
@@ -35,7 +33,7 @@
 
 ```powershell
 git -c safe.directory=C:/Users/Administrator/Desktop/Code/Test status --short
-rg -n "<关键词>" src libs flutter docs DOCS.md
+rg -n "<关键词>" src libs flutter docs
 ```
 
 ## 高风险改动入口
@@ -52,12 +50,16 @@ rg -n "<关键词>" src libs flutter docs DOCS.md
 | 终端 | `terminal_service.rs`, `connection.rs`, `message.proto`, `terminal_model.dart`, `terminal_connection_manager.dart`, `terminal_tab_page.dart` |
 | 插件 | `Cargo.toml` feature flags, `src/plugin/`, `flutter/lib/plugin/` |
 
-## 当前已知文档偏差
+## 已清理的过期文档
 
-- `DOCS.md` 仍说 Virtual Display key 未修复；源码已修复。
-- `DOCS.md` / 旧 `PROJECT_MEMORY.md` 曾说 `pkg2230.rs` 与 `ffi.rs` 完全相同；实际不相同，且不能盲目双文件复制。
-- Android Manifest scheme 是 `daxian`，Rust `get_uri_prefix()` 当前是 `daxianmeeting://`。
-- `terminal.md` 的终端持久化说明不是完整当前实现；恢复闭环仍需源码确认。
+- `DOCS.md`
+  - 已删除。原因：Virtual Display key、`pkg2230.rs` / `ffi.rs`、终端持久化、更新逻辑等多处结论已过期，继续保留会误导后续判断。
+- `CLAUDE.md`
+  - 已删除。原因：仍把 deep link 写成统一的 `daxian://`，并把 `ffi.rs` 当成必须同步的 live path，和当前源码不一致。
+- `terminal.md`
+  - 已删除。原因：仍按 `tmp_` / `persist_` 命名和 TODO 存储来描述终端持久化，和当前 `ts_{uuid}` + Rust 侧写回实现不一致。
+
+历史会话如果提到这三份文档，按已失效处理。
 
 
 ## 近期关键注意事项

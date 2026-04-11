@@ -1,7 +1,7 @@
 # 大仙会议 / DaxianMeeting — 项目核心记忆
 
 > 本文件是给后续工程会话快速恢复上下文用的“当前事实表”。
-> 最后复核：2026-04-08。判断优先级：源码 > `docs/CHANGELOG.md` / `docs/KNOWN_BUGS.md` > `DOCS.md` / 历史手册。
+> 最后复核：2026-04-11。判断优先级：源码 > `docs/PROJECT_MEMORY.md` > `docs/ANDROID_STATE_MACHINE.md` / `docs/CHANGELOG.md` / `docs/KNOWN_BUGS.md`。
 
 ---
 
@@ -34,7 +34,7 @@
 | Android Manifest scheme | `daxian` |
 | Rust `get_uri_prefix()` | 根据 `APP_NAME.to_lowercase()` 生成，当前为 `daxianmeeting://` |
 
-重要说明：Android deep link 文档里写的 `daxian://` 对 `AndroidManifest.xml` 是成立的，但 Rust 侧 URI 辅助函数当前生成的是 `daxianmeeting://`。Flutter 对 scheme 往往不做强校验，所以后续凡是改 deep link，都必须同时检查 Android、Flutter 和 Rust 桌面端路径。
+重要说明：Android deep link 文档里写的 `daxian://` 对 `AndroidManifest.xml` 是成立的，但 Rust 侧 URI 辅助函数当前生成的是 `daxianmeeting://`。Flutter 对 scheme 往往不做强校验，所以后续凡是改 deep link，都必须同时检查 Android、Flutter 和 Rust 桌面端路径。当前 `flutter/lib/common.dart` 里只有 `cmdArgs[0]` 路径会严格比对 `bind.mainUriPrefixSync()`；直接传入 `uriString` / `Uri` 的路径只做 `Uri.tryParse()`，这也是当前 split scheme 还能工作的现实原因之一。
 
 ---
 
@@ -44,16 +44,17 @@
 |---|---|---|
 | `docs/PROJECT_MEMORY.md` | 当前精简工程记忆 | 发现新事实后要持续更新 |
 | `docs/PROJECT_INDEX.md` | 文档入口与阅读顺序 | 后续会话先读这个 |
+| `docs/ANDROID_STATE_MACHINE.md` | Android 统一状态机 | 锁屏 / 断网 / 开关共享 / 等待首帧必读 |
 | `docs/CHANGELOG.md` | 历史改动记录 | 对 v5.2.1 / hotfix 事实较可靠 |
-| `docs/KNOWN_BUGS.md` | Bug 状态表 | 对“是否已修复”比 `DOCS.md` 更新 |
-| `DOCS.md` | 大型技术手册 | 有价值，但部分过期，使用前要回源码核对 |
-| `CLAUDE.md` | 旧助手说明 | 可参考，但继承了一些旧结论 |
-| `terminal.md` | 终端设计说明 | 部分过期，service_id 已支持，但恢复闭环不完整 |
+| `docs/KNOWN_BUGS.md` | Bug 状态表 | 当前风险基线和已修复项都在这里维护 |
 
-`DOCS.md` / 旧记忆里目前已知的过期说法：
-- Virtual Display key mismatch is no longer current; both Rust and Dart use `daxian_virtual_displays`.
-- `pkg2230.rs` and `ffi.rs` are not identical copies. They have different JNI exported names and service method targets; `git diff --no-index --stat` currently shows 62 changed lines.
-- 当前代码已经包含 v5.2.1 / hotfix 变更，但很多文档仍把基线写成 v5.2.0。
+已删除的过期文档：
+- `DOCS.md`
+  - 2026-04-11 删除。原因：Virtual Display key、`pkg2230.rs` / `ffi.rs`、终端持久化、更新逻辑等多处结论已过期。
+- `CLAUDE.md`
+  - 2026-04-11 删除。原因：deep link、JNI live path、双文件同步结论已不可信。
+- `terminal.md`
+  - 2026-04-11 删除。原因：终端 `service_id` 命名、回包字段、持久化写回状态与源码不一致。
 
 ---
 
@@ -269,7 +270,6 @@ Facts:
 ## 10. Terminal Subsystem
 
 Files:
-- `terminal.md`
 - `libs/hbb_common/protos/message.proto`
 - `src/server/terminal_service.rs`
 - `src/server/connection.rs`
@@ -287,9 +287,10 @@ Current reality:
 - Flutter has `TerminalConnectionManager` and multi-terminal routing by `terminal_id`.
 
 Incomplete / risky:
-- `TerminalConnectionManager.setServiceId()` exists but no actual call was found.
-- `src/client.rs` sends `terminal.service_id = self.get_option("terminal-service-id")`, but no complete client-side persistence write path was verified.
-- `terminal.md` still describes TODOs and older `tmp_` / `persist_` conventions, while current service ids are generated as `ts_{uuid}`.
+- `src/client.rs` sends `terminal.service_id = self.get_option("terminal-service-id")`.
+- `src/client/io_loop.rs` will persist `TerminalOpened.service_id` back into the same `terminal-service-id` option on successful open.
+- `TerminalConnectionManager.setServiceId()` exists but no actual call was found; Flutter-side `_serviceIds` cache is still unused.
+- 历史 `terminal.md` 已于 2026-04-11 删除；它描述的是旧 `tmp_` / `persist_` 约定和 TODO 存储，当前源码真实 `service_id` 为 `ts_{uuid}`，且 Rust 侧已能写回本地 option。
 
 Rule: any terminal persistence or reconnection work must verify client config storage, `LoginRequest.Terminal.service_id`, server service registry, and Flutter route handling together.
 
@@ -335,6 +336,12 @@ Windows:
 - `flutter/windows/runner/main.cpp` loads `librustdesk.dll`.
 - `native_model.dart` opens `librustdesk.dll` on Windows.
 - 如果 Windows Rust 构建失败，且生成的 `target/.../out/protos/message.rs` 或 `rendezvous.rs` 含 `\u{0}` 空字节，并伴随 `.rmeta` metadata invalid，应优先按 `target` 缓存/生成 protobuf 损坏处理。本轮修复没有改 Rust protobuf 或 `libs/hbb_common/src/fs.rs`，建议在构建机删除 `target` 后重建，不要误修源码里的 protobuf 类型引用。
+
+Server / update defaults:
+- 默认 rendezvous host 来自 `libs/hbb_common/src/config.rs`，当前是 `64.81.112.194`，端口分别为 `50006/50007/50008/50009`。
+- 默认 API fallback 是 `http://64.81.112.194:50004`；如果只配置了 `custom-rendezvous-server`，`src/common.rs::get_api_server()` 会按端口减 2 推导 API 地址。
+- 自动更新不走自定义 API 服务器；`libs/hbb_common/src/lib.rs::version_check_request()` 仍固定请求 `https://api.rustdesk.com/version/latest`。
+- `src/common.rs::is_custom_client()` 当前硬编码为 `false`，因此 `check_software_update()` 不会因为“自定义客户端”身份而短路。
 
 SO/DLL rename rule:
 - Android SO name changes must update `build.sh`, `ffi.kt`, `pkg2230.kt`, and `native_model.dart`.
