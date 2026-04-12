@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-04-13] 接管复核 / 文档校准
+### 以源码为准重新校正文档入口与长期记忆
+- 重新按源码核对了 Android 保活、锁屏/断网/开关共享状态机、PC 等待首帧、Flutter/Rust/Kotlin/JNI 调用链、服务器地址、认证逻辑、更新逻辑。
+- 修正文档结论：`docs/PROJECT_MEMORY.md` 中“TerminalConnectionManager.setServiceId() 没有实际调用”的说法已过期；源码里 `flutter/lib/models/terminal_model.dart::_handleTerminalOpened()` 已在终端打开成功后同步写入 Flutter 侧缓存。
+- 修正文档结构：整理了 `docs/PROJECT_MEMORY.md` 中 13/14 节的编号和风险表，避免“风险项表格串到 Android 状态机后面”的误导。
+- 补充文档边界：`docs/PROJECT_INDEX.md` 和 `docs/PROJECT_MEMORY.md` 现已明确标注 `docs/CHANGELOG.md` 较早历史条目存在部分编码损坏，回溯历史行为时应优先信源码与长期记忆文档。
+- 本次只做接管和文档校准，没有修改业务代码、没有改连接协议、没有改 Android/Flutter/Rust 行为。
+- 涉及文件：`docs/PROJECT_INDEX.md`, `docs/PROJECT_MEMORY.md`, `docs/CHANGELOG.md`
+
 ## [2026-04-12] Android JNI 底层治理：`pkg2230.rs` 去 `static mut`
 ### 只替换内部状态承载，保持按钮协议和控制链不变
 - `libs/scrap/src/android/pkg2230.rs` 里的 `PIXEL_SIZE4~8`、`PIXEL_SIZEBack/Back8`、`PIXEL_SIZEA0~A5` 已从裸 `static mut` 全局变量切换为 `Mutex<PixelState>` 统一承载。

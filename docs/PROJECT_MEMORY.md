@@ -327,10 +327,11 @@ Current reality:
 Incomplete / risky:
 - `src/client.rs` sends `terminal.service_id = self.get_option("terminal-service-id")`.
 - `src/client/io_loop.rs` will persist `TerminalOpened.service_id` back into the same `terminal-service-id` option on successful open.
-- `TerminalConnectionManager.setServiceId()` exists but no actual call was found; Flutter-side `_serviceIds` cache is still unused.
+- `flutter/lib/models/terminal_model.dart::_handleTerminalOpened()` now calls `TerminalConnectionManager.setServiceId()` when `opened.service_id` is returned.
+- `flutter/lib/desktop/pages/terminal_connection_manager.dart::syncServiceIdWithSession()` will prefer the Rust session option, and only writes Flutter cache back when Rust has no value.
 - 历史 `terminal.md` 已于 2026-04-11 删除；它描述的是旧 `tmp_` / `persist_` 约定和 TODO 存储，当前源码真实 `service_id` 为 `ts_{uuid}`，且 Rust 侧已能写回本地 option。
 
-Rule: any terminal persistence or reconnection work must verify client config storage, `LoginRequest.Terminal.service_id`, server service registry, and Flutter route handling together.
+Rule: any terminal persistence or reconnection work must still verify client config storage, `LoginRequest.Terminal.service_id`, server service registry, and Flutter route handling together.
 
 ---
 
@@ -391,6 +392,19 @@ SO/DLL rename rule:
 ## 13. Current Known Issues / Watch List
 
 | Issue | Current status |
+|---|---|
+| Virtual Display key mismatch | Fixed in source; docs partly stale |
+| `PIXEL_SIZE*` live-path state | Switched to `Mutex<PixelState>` on 2026-04-12; keep future changes on the helper path |
+| `ffi.rs` backup/legacy split | Not identical to `pkg2230.rs`; sync deliberately |
+| `targetSdkVersion=34` | Updated on 2026-04-11; re-test Android 14+ foreground service + MediaProjection flows after packaging |
+| Windows DLL still `librustdesk.dll` | Intentional project decision; not tracked as a risk item |
+| `verify_rustdesk_password_tip` RustDesk wording | UI entry fixed via `verify_app_password_tip` alias; legacy translation payloads still intentionally retained |
+| Deep link scheme | 主 `daxian://`，兼容 `daxianmeeting://` |
+| Terminal persistence recovery | 基本闭环已打通；后续改动仍要同时核对 Rust option、登录请求、服务端 registry 和 Flutter 页面 |
+| Plugin framework | Present but not default enabled |
+| `34d072b0` 引入的 PC Android 等待提示回归 | 当前工作区已修复；后续要把提示框路径和侧按钮层级作为一组逻辑维护 |
+| Rust `target` 缓存损坏导致生成 protobuf 空字节 | 构建环境问题；清理 `target`，不要误改依赖 protobuf 生成类型的 Rust 源码 |
+| `docs/CHANGELOG.md` 历史条目部分乱码 | 2026-04-11 之前的部分历史记录存在编码损坏，回溯旧修改时优先信源码与本文件，不要单独依赖乱码条目 |
 
 ---
 
@@ -437,22 +451,10 @@ Android 版本边界：
 1. 有没有重新把“服务状态”和“视频流状态”绑死。
 2. 有没有让 PC 又变成只等视频流。
 3. 有没有让等待画面 UI 挡住 Android 侧按钮。
-|---|---|
-| Virtual Display key mismatch | Fixed in source; docs partly stale |
-| `PIXEL_SIZE*` live-path state | Switched to `Mutex<PixelState>` on 2026-04-12; keep future changes on the helper path |
-| `ffi.rs` backup/legacy split | Not identical to `pkg2230.rs`; sync deliberately |
-| `targetSdkVersion=34` | Updated on 2026-04-11; re-test Android 14+ foreground service + MediaProjection flows after packaging |
-| Windows DLL still `librustdesk.dll` | Intentional project decision; not tracked as a risk item |
-| `verify_rustdesk_password_tip` RustDesk wording | UI entry fixed via `verify_app_password_tip` alias; legacy translation payloads still intentionally retained |
-| Deep link scheme | 主 `daxian://`，兼容 `daxianmeeting://` |
-| Terminal persistence recovery | Not fully closed-loop on client side |
-| Plugin framework | Present but not default enabled |
-| `34d072b0` 引入的 PC Android 等待提示回归 | 当前工作区已修复；后续要把提示框路径和侧按钮层级作为一组逻辑维护 |
-| Rust `target` 缓存损坏导致生成 protobuf 空字节 | 构建环境问题；清理 `target`，不要误改依赖 protobuf 生成类型的 Rust 源码 |
 
 ---
 
-## 14. Future Session Bootstrap
+## 15. Future Session Bootstrap
 
 Recommended read order for future Codex sessions:
 
@@ -476,7 +478,7 @@ After any change:
 
 ---
 
-## 15. Android 10 专属分支（2026-04-09）
+## 16. Android 10 专属分支（2026-04-09）
 
 本轮开始正式把 Android 10 和 Android 11-16 分开处理，不再混用同一套“无视截屏兜底”规则。
 
@@ -504,3 +506,21 @@ After any change:
   1. Android 10 不会再被当成支持截屏兜底
   2. Android 11-16 的现有截屏兜底链路没有被破坏
   3. PC 不会因为版本判断缺失而重新死等不存在的截屏流
+
+---
+
+## 17. 接管复核结论（2026-04-13）
+
+本轮按“先读文档，再反查源码”的方式重新接管，已核对以下真实实现：
+
+- Android 保活主链：`DFm8Y8iMScvB2YDw.kt` 中 `ServiceVideoState`、`markProjectionStreamingState()`、`transitionToServiceAliveWithoutProjection()`、`startIgnoreFallback()`、`ensureFloatingWindowKeepAlive()` 与文档描述一致。
+- 锁屏 / 断网 / 关共享 / 开共享：`ACTION_SCREEN_OFF` 不主动停投屏，`killMediaProjection()` / `handleProjectionStoppedKeepService()` / `stopCaptureKeepService()` 都以“服务继续存活，可切无视兜底”为主目标，和状态机文档一致。
+- PC 等待首帧：`flutter/lib/models/model.dart` 仍以 `waitForFirstImage` + `waitForImageTimer` 管理等待态，收到任意 RGBA/Texture 首帧后走 `onEvent2UIRgba()` 清理等待提示和 Android 侧按钮覆盖层，和文档一致。
+- Flutter / Rust / Kotlin / JNI：Android live path 仍是 `overlay.dart` -> `input_model.dart` -> `flutter_ffi.rs` -> `client.rs` -> `server/connection.rs` -> `pkg2230.rs` -> `DFm8Y8iMScvB2YDw.kt` / `nZW99cdXQ0COhB2o.kt`；`ffi.rs` / `ffi.kt` 仍是 legacy 参考路径。
+- 配置 / 认证 / 更新：`src/common.rs` 中 deep link 主 scheme 仍是 `daxian://`，兼容 `daxianmeeting://`；默认 rendezvous / relay / API 仍指向 `64.81.112.194` 与 `50004-50009`；软件更新仍被 `is_software_update_disabled()` 硬禁用；产品账号校验仍主要位于 Flutter / Sciter UI 层，不存在新的 Rust 权威认证入口。
+
+本轮确认的文档偏差：
+
+- `docs/PROJECT_MEMORY.md` 终端章节原先把 Flutter 侧 `service_id` 同步写成“未接线”，已过期；源码里 `TerminalModel._handleTerminalOpened()` 已实际调用 `TerminalConnectionManager.setServiceId()`。
+- `docs/PROJECT_MEMORY.md` 13/14 节原先存在编号和表格串位，容易误判风险项归属；现已收口。
+- `docs/CHANGELOG.md` 的较早历史条目存在部分编码损坏；这些内容只能作为弱参考，回溯旧行为请优先以源码和本文件为准。

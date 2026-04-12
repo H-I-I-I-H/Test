@@ -10,6 +10,7 @@
    - Android 服务保活、锁屏/断网、共享开关、等待首帧的统一状态机。
 3. `docs/CHANGELOG.md`
    - 已落地修改，尤其 v5.2.1 和 hotfix。
+   - 注意：较早历史条目有部分编码损坏；回溯旧行为时，源码和 `PROJECT_MEMORY.md` 优先级更高。
 4. `docs/KNOWN_BUGS.md`
    - 当前 bug 状态、接管期新增高风险点、已修复项。
 
@@ -79,6 +80,7 @@ rg -n "<关键词>" src libs flutter docs
 - 日志对比文档：`docs/ANDROID_KEEPALIVE_LOG_ANALYSIS.md` 记录了本项目与 `yxbjv.lmge.gbjrj` 的锁屏保活差异；重点结论是本次日志没显示本项目被系统杀进程，已按对比包方向调整服务通知和悬浮窗透明度。悬浮窗未配置时保持可见常驻，配置为 0 时最低 `alpha=0.01` 且不可触摸。
 - UI 状态：主界面权限卡隐藏剪贴板同步和保持屏幕开启，但默认启用；悬浮窗行显示为 `悬浮权限`；侧按钮“开”为蓝色，“关”为红色。
 - 构建注意：生成的 `target/.../out/protos/*.rs` 出现空字节并伴随 `.rmeta` invalid metadata 是 Rust 构建缓存损坏；清理构建机 `target`，不要误改 `libs/hbb_common/src/fs.rs`。
+- 文档读取注意：`docs/CHANGELOG.md` 早期历史记录存在部分乱码；看历史时先信源码，再看 `PROJECT_MEMORY.md` 的复核结论。
 
 ## 新增必读
 
